@@ -1,0 +1,6 @@
+{
+  "name": "Prumo",
+  "description": "O copiloto financeiro que se adapta à sua profissão e às suas metas para o Brasil e Angola.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

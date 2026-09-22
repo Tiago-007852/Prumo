@@ -1,0 +1,49 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #F6F3EC;
+  --surface: #FFFFFF;
+  --surface-2: #EFEAE0;
+  --line: #DAD3C4;
+  --text: #1B2430;
+  --text-dim: #5C6672;
+  --accent: #B5642B;
+  --accent-soft: rgba(181, 100, 43, 0.12);
+  --positive: #2F7A5C;
+  --positive-soft: rgba(47, 122, 92, 0.12);
+  --warn: #A9781E;
+  --warn-soft: rgba(169, 120, 30, 0.12);
+  --danger: #AC3B32;
+  --danger-soft: rgba(172, 59, 50, 0.12);
+}
+
+.dark {
+  --bg: #12181F;
+  --surface: #1A222B;
+  --surface-2: #232D39;
+  --line: #2D3947;
+  --text: #EDF1F4;
+  --text-dim: #8E9DAE;
+  --accent: #E0975A;
+  --accent-soft: rgba(224, 151, 90, 0.18);
+  --positive: #6FC7A2;
+  --positive-soft: rgba(111, 199, 162, 0.18);
+  --warn: #E0B75C;
+  --warn-soft: rgba(224, 183, 92, 0.18);
+  --danger: #E2887F;
+  --danger-soft: rgba(226, 136, 127, 0.18);
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.font-serif-display {
+  font-family: 'Fraunces', Georgia, serif;
+}
+
+.font-sans-ui {
+  font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+}
