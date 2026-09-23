@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { requireUser, unauthorized } from '../../lib/http';
-import { loadUserState } from '../../lib/userData';
+import { requireUser, unauthorized } from '../_lib/http';
+import { loadUserState } from '../_lib/userData';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {

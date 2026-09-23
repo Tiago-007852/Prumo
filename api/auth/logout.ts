@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { SESSION_COOKIE, destroySession } from '../../lib/auth';
-import { readSessionToken } from '../../lib/http';
+import { SESSION_COOKIE, destroySession } from '../_lib/auth';
+import { readSessionToken } from '../_lib/http';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {

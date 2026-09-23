@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { registerUser, SESSION_COOKIE } from '../../lib/auth';
+import { registerUser, SESSION_COOKIE } from '../_lib/auth';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {

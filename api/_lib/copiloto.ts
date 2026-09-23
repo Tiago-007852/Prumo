@@ -3,8 +3,8 @@
  * Compartilhado entre o servidor Express (server.ts) e as funções serverless (api/).
  * Mantém o prompt de sistema idêntico ao prompts/copiloto-system.md.
  */
-import { FinancialSnapshot } from '../src/types';
-import { buildFinancialPortraitMarkdown } from '../src/services/businessRules';
+import { FinancialSnapshot } from '../../src/types';
+import { buildFinancialPortraitMarkdown } from '../../src/services/businessRules';
 import { EMBEDDED_SYSTEM_PROMPT } from './systemPrompt';
 import { chatComplete, resolveCompatProvider, resolveAiProviderName } from './llm';
 

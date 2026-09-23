@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { generateCopilotoReply } from '../lib/copiloto';
-import { loadSystemPrompt } from '../lib/systemPrompt';
+import { generateCopilotoReply } from './_lib/copiloto';
+import { loadSystemPrompt } from './_lib/systemPrompt';
 import { GoogleGenAI } from '@google/genai';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

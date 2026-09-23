@@ -2,19 +2,19 @@ import express from 'express';
 import path from 'path';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
-import { categorizeDescription } from './lib/categorize';
-import { generateCopilotoReply } from './lib/copiloto';
-import { loadSystemPrompt } from './lib/systemPrompt';
-import { resolveAiProviderName } from './lib/llm';
+import { categorizeDescription } from './api/_lib/categorize';
+import { generateCopilotoReply } from './api/_lib/copiloto';
+import { loadSystemPrompt } from './api/_lib/systemPrompt';
+import { resolveAiProviderName } from './api/_lib/llm';
 import {
   registerUser,
   loginUser,
   getUserByToken,
   destroySession,
   SESSION_COOKIE,
-} from './lib/auth';
-import { saveUserState, loadUserState, exportUserData, deleteUserData } from './lib/userData';
-import { requireUser } from './lib/http';
+} from './api/_lib/auth';
+import { saveUserState, loadUserState, exportUserData, deleteUserData } from './api/_lib/userData';
+import { requireUser } from './api/_lib/http';
 
 dotenv.config();
 

@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { requireUser, unauthorized, parseBody } from '../../lib/http';
-import { deleteUserData } from '../../lib/userData';
-import { SESSION_COOKIE, destroySession } from '../../lib/auth';
+import { requireUser, unauthorized, parseBody } from '../_lib/http';
+import { deleteUserData } from '../_lib/userData';
+import { SESSION_COOKIE, destroySession } from '../_lib/auth';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
