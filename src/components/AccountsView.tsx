@@ -277,7 +277,22 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
 
       {/* Modal de Conexão com Consentimento Open Finance */}
       {showConnectModal && selectedInst && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="connect-modal-title"
+          tabIndex={-1}
+          ref={(node) => {
+            if (node) node.focus();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              setShowConnectModal(false);
+              setSelectedInst(null);
+            }
+          }}
+        >
           <div className="w-full max-w-md rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-xl space-y-4 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between border-b border-[var(--line)] pb-3">
               <div className="flex items-center gap-2">
@@ -287,7 +302,10 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
                 >
                   {selectedInst.logoText}
                 </div>
-                <h3 className="font-semibold text-sm text-[var(--text)]">
+                <h3
+                  id="connect-modal-title"
+                  className="font-semibold text-sm text-[var(--text)]"
+                >
                   Conectar {selectedInst.name}
                 </h3>
               </div>

@@ -48,6 +48,7 @@ import { ScenarioSimulatorView } from './components/ScenarioSimulatorView';
 import { AccountsView } from './components/AccountsView';
 import { CopilotChatView } from './components/CopilotChatView';
 import { ProfileModal } from './components/ProfileModal';
+import { LoginView } from './components/LoginView';
 import {
   loadCountryData,
   saveCountryData,
@@ -57,6 +58,15 @@ import {
   getStoredTheme,
   setStoredTheme,
 } from './services/storageService';
+import {
+  fetchMe,
+  logout as authLogout,
+  exportMyData,
+  deleteMyAccount,
+  type AuthUser,
+} from './services/authService';
+import { pushState, pullState, type SyncStatus } from './services/syncService';
+import { Info, Lock, Compass } from 'lucide-react';
 
 export default function App() {
   // 1. Country & Theme
@@ -84,6 +94,11 @@ export default function App() {
   // 2. Active Tab
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
 
+  // 2.1 Autenticação & Sync (Neon)
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [authStatus, setAuthStatus] = useState<'checking' | 'guest' | 'authed' | 'demo'>('checking');
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>('local');
+
   // 3. Modals
   const [isProfileOpen, setIsProfileOpen] = useState(false);
 
@@ -109,6 +124,104 @@ export default function App() {
       lastSavedAt: new Date().toISOString(),
     });
   }, [country, user, accounts, transactions, budgetLimits, scenarioEvents, chatMessages, goals]);
+
+  // Aplica estado vindo do servidor (restauro em novo dispositivo/login)
+  const applyServerState = (serverState: unknown, targetCountry: Country) => {
+    if (!serverState || typeof serverState !== 'object') return;
+    const s = serverState as Record<string, unknown>;
+    const arr = <T,>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
+
+    setCountry(targetCountry);
+    setStoredActiveCountry(targetCountry);
+
+    const serverUser = (s.user && typeof s.user === 'object' ? s.user : {}) as Partial<User>;
+    setUser((prev) => ({ ...prev, ...serverUser, country: targetCountry }));
+    setAccounts(arr<Account>(s.accounts));
+    setTransactions(arr<Transaction>(s.transactions));
+    setBudgetLimits(arr<BudgetLimit>(s.budgetLimits));
+    setScenarioEvents(arr<ScenarioEvent>(s.scenarioEvents));
+    setChatMessages(arr<ChatMessage>(s.chatMessages));
+    setGoals(arr<Goal>(s.goals));
+  };
+
+  // Restaura sessão existente (cookie httpOnly) ao carregar o app
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const me = await fetchMe();
+      if (cancelled) return;
+      if (me) {
+        setAuthUser(me);
+        setAuthStatus('authed');
+        setUser((prev) => ({ ...prev, name: me.name, email: me.email, country: me.country }));
+        const pulled = await pullState();
+        if (cancelled) return;
+        if (pulled?.state && typeof pulled.state === 'object') {
+          applyServerState(pulled.state, me.country);
+          setSyncStatus('synced');
+        } else {
+          setSyncStatus('pending'); // efeito de auto-push envia o estado local
+        }
+      } else {
+        setAuthStatus('guest');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Modo demonstração: sessão verificada mas sem conta (dados só locais)
+  const isDemoMode = authStatus === 'demo';
+
+  // Pós-login/registro: restaura estado do servidor ou marca para o primeiro push
+  const handleAuthSuccess = async (account: AuthUser) => {
+    setAuthUser(account);
+    setAuthStatus('authed');
+    setUser((prev) => ({ ...prev, name: account.name, email: account.email, country: account.country }));
+    if (account.country !== country) {
+      handleCountryChange(account.country);
+    }
+    const pulled = await pullState();
+    if (pulled?.state && typeof pulled.state === 'object') {
+      applyServerState(pulled.state, account.country);
+      setSyncStatus('synced');
+    } else {
+      setSyncStatus('pending');
+    }
+  };
+
+  // Auto-push debounced do estado local para o Neon (quando autenticado e online)
+  useEffect(() => {
+    if (authStatus !== 'authed' || isDemoMode || !isOnline) return;
+    setSyncStatus((prev) => (prev === 'synced' ? 'pending' : prev));
+    const timer = setTimeout(async () => {
+      const result = await pushState({
+        user,
+        accounts,
+        transactions,
+        budgetLimits,
+        scenarioEvents,
+        chatMessages,
+        goals,
+        lastSavedAt: new Date().toISOString(),
+      });
+      setSyncStatus(result.ok ? 'synced' : 'error');
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, [authStatus, isOnline, user, accounts, transactions, budgetLimits, scenarioEvents, chatMessages, goals]);
+
+  const handleLogout = async () => {
+    try {
+      await authLogout();
+    } catch {
+      // sessão já inválida — seguir para o login mesmo assim
+    }
+    setAuthUser(null);
+    setAuthStatus('guest');
+    setSyncStatus('local');
+  };
 
   // Apply dark mode class to document element
   useEffect(() => {
@@ -409,6 +522,31 @@ Todas as ferramentas do Prumo — incluindo registro de lançamentos, verificaç
     [user.profile, accounts, transactions, budgetLimits]
   );
 
+  // ─── Gate de autenticação ───
+  if (authStatus === 'checking') {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[var(--bg)] text-[var(--text)] gap-3">
+        <div className="w-12 h-12 rounded-xl bg-[var(--accent)] flex items-center justify-center text-white shadow-sm animate-pulse">
+          <Compass className="w-7 h-7" />
+        </div>
+        <p className="text-sm text-[var(--text-dim)]">Alinhando o prumo...</p>
+      </div>
+    );
+  }
+
+  if (authStatus === 'guest') {
+    return (
+      <LoginView
+        onAuthSuccess={handleAuthSuccess}
+        onGuestMode={() => {
+          setAuthStatus('demo');
+          setSyncStatus('local');
+        }}
+        isOnline={isOnline}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-[var(--bg)] text-[var(--text)] transition-colors">
       {/* Top Header */}
@@ -421,6 +559,7 @@ Todas as ferramentas do Prumo — incluindo registro de lançamentos, verificaç
         onOpenProfile={() => setIsProfileOpen(true)}
         onResetData={handleResetData}
         isOnline={isOnline}
+        syncStatus={syncStatus}
       />
 
       {/* Main Tab Navigation */}
@@ -512,14 +651,56 @@ Todas as ferramentas do Prumo — incluindo registro de lançamentos, verificaç
         )}
       </main>
 
-      {/* Profile / Calibration Modal */}
-      <ProfileModal
-        user={user}
-        isOpen={isProfileOpen}
-        onClose={() => setIsProfileOpen(false)}
-        onSaveProfile={handleSaveProfile}
-        onToggle2FA={handleToggle2FA}
-      />
+      {/* Rodapé institucional: disclaimer financeiro + privacidade (LGPD) */}
+      <footer
+        id="prumo-footer"
+        className="border-t border-[var(--line)] bg-[var(--surface)] mt-4"
+      >
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex flex-col md:flex-row md:items-start justify-between gap-4">
+          <div className="flex items-start gap-2.5 text-[11px] sm:text-xs text-[var(--text-dim)] leading-relaxed max-w-2xl">
+            <Info className="w-4 h-4 text-[var(--accent)] shrink-0 mt-0.5" />
+            <p>
+              O Prumo é uma ferramenta educacional de organização financeira. As análises,
+              projeções e respostas do copiloto <strong className="text-[var(--text)]">não constituem aconselhamento
+              financeiro, de investimento, jurídico ou tributário</strong>. Decisões com impacto
+              patrimonial devem ser avaliadas com um profissional certificado. Simulações são
+              estimativas baseadas nos dados que você fornece e não garantem resultados futuros.
+            </p>
+          </div>
+          <div className="flex items-start gap-2.5 text-[11px] sm:text-xs text-[var(--text-dim)] leading-relaxed max-w-md">
+            <Lock className="w-4 h-4 text-[var(--positive)] shrink-0 mt-0.5" />
+            <p>
+              <strong className="text-[var(--text)]">Seus dados são seus:</strong> lançamentos, contas e
+              conversas ficam armazenados apenas no armazenamento local do seu dispositivo
+              (conforme a LGPD n° 13.709/2018). Não enviamos seus dados financeiros a terceiros.
+            </p>
+          </div>
+        </div>
+        <div className="border-t border-[var(--line)]">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-col sm:flex-row items-center justify-between gap-1 text-[11px] text-[var(--text-dim)]">
+            <span className="flex items-center gap-1.5">
+              <span className="font-serif-display font-semibold text-[var(--text)]">Prumo</span>
+              © {new Date().getFullYear()} — Copiloto financeiro para Brasil e Angola
+            </span>
+            <span>Beta público • v1.0</span>
+          </div>
+        </div>
+      </footer>
+
+      {/* Profile / Calibration Modal (montado condicionalmente para re-inicializar os campos a cada abertura) */}
+      {isProfileOpen && (
+        <ProfileModal
+          user={user}
+          isOpen
+          onClose={() => setIsProfileOpen(false)}
+          onSaveProfile={handleSaveProfile}
+          onToggle2FA={handleToggle2FA}
+          accountEmail={authUser?.email}
+          onLogout={handleLogout}
+          onExportData={exportMyData}
+          onDeleteAccount={deleteMyAccount}
+        />
+      )}
     </div>
   );
 }

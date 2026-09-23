@@ -13,6 +13,22 @@ import {
 } from '../types';
 
 /**
+ * Retorna a chave 'YYYY-MM' de uma data (string ISO ou Date), em fuso local.
+ */
+export function getMonthKey(date: string | Date): string {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  if (isNaN(d.getTime())) return '';
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+/**
+ * Chave do mês corrente (fuso local do dispositivo).
+ */
+export function getCurrentMonthKey(): string {
+  return getMonthKey(new Date());
+}
+
+/**
  * Formatação de moeda por país
  * BR: R$ 1.250,00
  * AO: Kz 1.250,00 ou 1.250,00 Kz
@@ -72,17 +88,30 @@ export function calculateAggregatedBalance(accounts: Account[]): number {
  * Cálculo de totais e taxa de poupança (Savings Rate)
  * Taxa de poupança = (receitas - despesas) / receitas
  * Caso receitas <= 0, retorna 0 (ou valor negativo se houver déficit explícito)
+ *
+ * Por padrão considera apenas o MÊS CORRENTE (os rótulos do app falam em
+ * "Receitas do Mês"). Passe `{ monthKey: null }` para somar todo o histórico
+ * ou `{ monthKey: '2026-09' }` para um mês específico.
  */
-export function calculateTotals(transactions: Transaction[]): {
+export function calculateTotals(
+  transactions: Transaction[],
+  options?: { monthKey?: string | null }
+): {
   totalIncome: number;
   totalExpense: number;
   netSavings: number;
   savingsRate: number;
 } {
+  const monthKey = options?.monthKey === undefined ? getCurrentMonthKey() : options.monthKey;
+  const scoped =
+    monthKey && monthKey !== null
+      ? transactions.filter((t) => getMonthKey(t.occurredAt) === monthKey)
+      : transactions;
+
   let totalIncome = 0;
   let totalExpense = 0;
 
-  for (const t of transactions) {
+  for (const t of scoped) {
     if (t.type === 'income') {
       totalIncome += Math.abs(t.amount);
     } else if (t.type === 'expense') {
@@ -131,15 +160,24 @@ export function calculateBudgetStatus(spent: number, limit: number): {
 }
 
 /**
- * Análise consolidada de todos os limites de orçamento
+ * Análise consolidada de todos os limites de orçamento.
+ * Por padrão considera apenas o MÊS CORRENTE; use `{ monthKey: null }` para
+ * analisar todo o histórico ou uma chave 'YYYY-MM' específica.
  */
 export function analyzeBudgets(
   budgetLimits: BudgetLimit[],
-  currentMonthTransactions: Transaction[]
+  currentMonthTransactions: Transaction[],
+  options?: { monthKey?: string | null }
 ): BudgetAnalysis[] {
+  const monthKey = options?.monthKey === undefined ? getCurrentMonthKey() : options.monthKey;
+  const scoped =
+    monthKey && monthKey !== null
+      ? currentMonthTransactions.filter((t) => getMonthKey(t.occurredAt) === monthKey)
+      : currentMonthTransactions;
+
   // Agrupar gastos por categoria
   const spentByCategory: Record<string, number> = {};
-  for (const t of currentMonthTransactions) {
+  for (const t of scoped) {
     if (t.type === 'expense') {
       spentByCategory[t.category] = (spentByCategory[t.category] || 0) + Math.abs(t.amount);
     }

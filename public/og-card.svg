@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <!-- Fundo papel -->
+  <rect width="1200" height="630" fill="#F6F3EC"/>
+  <!-- Linha do prumo (motivo diagonal sutil) -->
+  <line x1="760" y1="-60" x2="1300" y2="700" stroke="#DAD3C4" stroke-width="3"/>
+  <line x1="680" y1="-60" x2="1220" y2="700" stroke="#EFEAE0" stroke-width="3"/>
+
+  <!-- Selo cobre com a marca do prumo -->
+  <rect x="110" y="165" width="300" height="300" rx="52" fill="#B5642B"/>
+  <g transform="translate(260,315) scale(3.3) translate(-32,-32)">
+    <circle cx="32" cy="21" r="9.5" fill="none" stroke="#FFFFFF" stroke-width="5"/>
+    <rect x="30" y="32" width="4" height="13" rx="2" fill="#FFFFFF"/>
+    <path d="M23.5 43 L40.5 43 L32 56 Z" fill="#FFFFFF"/>
+  </g>
+
+  <!-- Wordmark PRUMO em geometria pura (sem fontes) -->
+  <g transform="translate(490,240) scale(1.55)" fill="none" stroke="#1B2430" stroke-width="13" stroke-linecap="round" stroke-linejoin="round">
+    <!-- P -->
+    <path d="M0 105 L0 0 L36 0 Q56 0 56 20 L56 32 Q56 52 36 52 L0 52"/>
+    <!-- R -->
+    <g transform="translate(86,0)">
+      <path d="M0 105 L0 0 L36 0 Q56 0 56 20 L56 32 Q56 52 36 52 L0 52"/>
+      <path d="M22 52 L58 105"/>
+    </g>
+    <!-- U -->
+    <g transform="translate(172,0)">
+      <path d="M0 0 L0 82 Q0 105 24 105 L34 105 Q58 105 58 82 L58 0"/>
+    </g>
+    <!-- M -->
+    <g transform="translate(258,0)">
+      <path d="M0 105 L0 0 L30 48 L60 0 L60 105"/>
+    </g>
+    <!-- O -->
+    <g transform="translate(344,0)">
+      <ellipse cx="30" cy="52" rx="32" ry="52"/>
+    </g>
+  </g>
+
+  <!-- Régua cobre + três pontos de ritmo -->
+  <rect x="492" y="412" width="300" height="6" rx="3" fill="#B5642B"/>
+  <circle cx="822" cy="415" r="5" fill="#B5642B"/>
+  <circle cx="844" cy="415" r="5" fill="#E0975A"/>
+  <circle cx="866" cy="415" r="5" fill="#B5642B"/>
+
+  <!-- Chips BR / AO (sem texto: cores dos países) -->
+  <g transform="translate(492,470)">
+    <rect width="132" height="64" rx="14" fill="#FFFFFF" stroke="#DAD3C4" stroke-width="2"/>
+    <g transform="translate(20,16)">
+      <rect width="44" height="32" rx="5" fill="#2F7A5C"/>
+      <path d="M22 4 L38 16 L22 28 L6 16 Z" fill="#E0B75C"/>
+      <circle cx="22" cy="16" r="6" fill="#2B4C8C"/>
+    </g>
+  </g>
+  <g transform="translate(644,470)">
+    <rect width="132" height="64" rx="14" fill="#FFFFFF" stroke="#DAD3C4" stroke-width="2"/>
+    <g transform="translate(20,16)">
+      <rect width="44" height="16" rx="5" fill="#AC3B32"/>
+      <rect y="16" width="44" height="16" rx="5" fill="#1B2430"/>
+      <path d="M10 6 L12.5 12 L19 12 L14 16 L16 22 L10 18 L4 22 L6 16 L1 12 L7.5 12 Z" fill="#E0B75C" transform="scale(0.9) translate(1,1)"/>
+    </g>
+  </g>
+
+  <!-- Sombra suave do selo -->
+  <rect x="110" y="472" width="300" height="10" rx="5" fill="#DAD3C4" opacity="0.4"/>
+</svg>

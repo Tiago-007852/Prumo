@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, Country, UserProfile } from '../types';
-import { User as UserIcon, Shield, Briefcase, Target, X, Check, Globe } from 'lucide-react';
+import { User as UserIcon, Shield, Briefcase, Target, X, Check, Globe, LogOut, Download, Trash2 } from 'lucide-react';
 
 interface ProfileModalProps {
   user: User;
@@ -8,6 +8,10 @@ interface ProfileModalProps {
   onClose: () => void;
   onSaveProfile: (updatedProfile: UserProfile, country: Country, name: string) => void;
   onToggle2FA: () => void;
+  accountEmail?: string | null;
+  onLogout?: () => void | Promise<void>;
+  onExportData?: () => void | Promise<void>;
+  onDeleteAccount?: (email: string) => void | Promise<void>;
 }
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({
@@ -16,9 +20,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   onClose,
   onSaveProfile,
   onToggle2FA,
+  accountEmail,
+  onLogout,
+  onExportData,
+  onDeleteAccount,
 }) => {
-  if (!isOpen) return null;
-
+  // Hooks precisam rodar em toda renderização (Rules of Hooks) —
+  // por isso o early return fica DEPOIS deles.
   const [name, setName] = useState(user.name);
   const [country, setCountry] = useState<Country>(user.country);
   const [profession, setProfession] = useState(user.profile.profession);
@@ -30,6 +38,27 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [monthlyIncomeExpectation, setMonthlyIncomeExpectation] = useState(
     user.profile.monthlyIncomeExpectation.toString()
   );
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [lgpdError, setLgpdError] = useState<string | null>(null);
+
+  // Re-sincronizar os campos com o perfil sempre que o modal ABRIR.
+  // Dependência apenas de isOpen: dependências no objeto user resetariam o
+  // formulário em edição quando algo como o 2FA for alternado dentro do modal.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (isOpen) {
+      setName(user.name);
+      setCountry(user.country);
+      setProfession(user.profile.profession);
+      setPrimaryGoal(user.profile.primaryGoal);
+      setGoalTargetValue(user.profile.goalTargetValue.toString());
+      setGoalDeadline(user.profile.goalDeadline);
+      setMonthlyIncomeExpectation(user.profile.monthlyIncomeExpectation.toString());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
+  if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,12 +78,26 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="profile-modal-title"
+      ref={(node) => {
+        if (node) node.focus();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') onClose();
+      }}
+    >
       <div className="w-full max-w-lg rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5 sm:p-6 shadow-xl space-y-4 animate-in fade-in zoom-in-95">
         <div className="flex items-center justify-between border-b border-[var(--line)] pb-3">
           <div className="flex items-center gap-2">
             <UserIcon className="w-5 h-5 text-[var(--accent)]" />
-            <h3 className="font-serif-display font-bold text-lg text-[var(--text)]">
+            <h3
+              id="profile-modal-title"
+              className="font-serif-display font-bold text-lg text-[var(--text)]"
+            >
               Perfil & Calibração do Copiloto
             </h3>
           </div>
@@ -201,6 +244,86 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             >
               Salvar Alterações
             </button>
+          </div>
+
+          {/* Sessão & Privacidade (LGPD) */}
+          <div className="pt-4 mt-2 border-t border-[var(--line)] space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-xs font-semibold text-[var(--text)]">Sessão</div>
+                <div className="text-[11px] text-[var(--text-dim)] truncate">
+                  {accountEmail || 'Modo convidado — dados apenas neste dispositivo'}
+                </div>
+              </div>
+              {onLogout && (
+                <button
+                  type="button"
+                  onClick={() => void onLogout()}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--line)] text-xs font-semibold text-[var(--text)] hover:bg-[var(--surface-2)] cursor-pointer shrink-0"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>Sair</span>
+                </button>
+              )}
+            </div>
+
+            {accountEmail && (
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="text-[11px] text-[var(--text-dim)]">
+                  Direitos LGPD: portabilidade e eliminação dos seus dados.
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => void Promise.resolve(onExportData?.())}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--line)] text-xs font-semibold text-[var(--text)] hover:bg-[var(--surface-2)] cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Exportar</span>
+                  </button>
+                  {deleteConfirm ? (
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            await onDeleteAccount?.(accountEmail);
+                            // conta eliminada: a sessão caiu, o app redireciona via estado de auth
+                          } catch {
+                            setLgpdError('Não foi possível eliminar a conta agora. Tente novamente.');
+                          }
+                        }}
+                        className="px-3 py-1.5 rounded-lg bg-[var(--danger)] text-white text-xs font-semibold cursor-pointer"
+                      >
+                        Confirmar eliminação
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDeleteConfirm(false)}
+                        className="text-xs text-[var(--text-dim)] hover:underline cursor-pointer"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setDeleteConfirm(true)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--danger)]/40 text-xs font-semibold text-[var(--danger)] hover:bg-[var(--danger-soft)] cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Eliminar conta</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {lgpdError && (
+              <div role="alert" className="p-2.5 rounded-lg border border-[var(--danger)]/30 bg-[var(--danger-soft)] text-[11px] font-medium text-[var(--danger)]">
+                {lgpdError}
+              </div>
+            )}
           </div>
         </form>
       </div>

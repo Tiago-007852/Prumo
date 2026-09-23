@@ -18,6 +18,7 @@ import {
   WifiOff,
   HardDrive,
   Download,
+  AlertCircle,
 } from 'lucide-react';
 
 interface TransactionsViewProps {
@@ -68,6 +69,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
   const [isClassifying, setIsClassifying] = useState(false);
   const [aiTagMessage, setAiTagMessage] = useState<string | null>(null);
   const [exportNotice, setExportNotice] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Exportação CSV do histórico financeiro
   const handleExportCSV = () => {
@@ -129,10 +131,15 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const parsedAmount = parseFloat(formAmount.replace(',', '.'));
-    if (!formDesc || isNaN(parsedAmount) || parsedAmount <= 0) {
-      alert('Por favor, preencha descrição e valor válido.');
+    if (!formDesc.trim() || isNaN(parsedAmount) || parsedAmount <= 0) {
+      setFormError(
+        !formDesc.trim()
+          ? 'Informe uma descrição para o lançamento.'
+          : 'Informe um valor maior que zero (use ponto ou vírgula como decimal).'
+      );
       return;
     }
+    setFormError(null);
 
     onAddTransaction({
       userId: 'current-user',
@@ -151,6 +158,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     setFormAmount('');
     setFormMerchant('');
     setAiTagMessage(null);
+    setFormError(null);
     setIsFormOpen(false);
   };
 
@@ -410,10 +418,24 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
             </div>
           </div>
 
+          {formError && (
+            <div
+              id="form-error-inline"
+              role="alert"
+              className="p-3 rounded-lg border border-[var(--danger)]/30 bg-[var(--danger-soft)] text-xs font-medium text-[var(--danger)] flex items-center gap-2"
+            >
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{formError}</span>
+            </div>
+          )}
+
           <div className="flex justify-end gap-2 pt-3 border-t border-[var(--line)]">
             <button
               type="button"
-              onClick={() => setIsFormOpen(false)}
+              onClick={() => {
+                setFormError(null);
+                setIsFormOpen(false);
+              }}
               className="px-4 py-2 text-xs font-semibold rounded-lg border border-[var(--line)] text-[var(--text-dim)] hover:bg-[var(--surface-2)] cursor-pointer"
             >
               Cancelar

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Country, User } from '../types';
-import { ShieldCheck, Moon, Sun, User as UserIcon, RefreshCw, Compass, WifiOff, HardDrive } from 'lucide-react';
+import { ShieldCheck, Moon, Sun, User as UserIcon, RefreshCw, Compass, WifiOff, HardDrive, Cloud, CloudOff, Loader2 } from 'lucide-react';
+import type { SyncStatus } from '../services/syncService';
 
 interface HeaderProps {
   user: User;
@@ -11,6 +12,7 @@ interface HeaderProps {
   onOpenProfile: () => void;
   onResetData: () => void;
   isOnline?: boolean;
+  syncStatus?: SyncStatus;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -22,6 +24,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenProfile,
   onResetData,
   isOnline = true,
+  syncStatus = 'local',
 }) => {
   return (
     <header
@@ -99,11 +102,38 @@ export const Header: React.FC<HeaderProps> = ({
           ) : (
             <div
               id="badge-storage-status"
-              className="hidden xl:flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-[var(--text-dim)] bg-[var(--surface-2)] border border-[var(--line)]"
-              title="Persistência local ativa via LocalStorage"
+              className="hidden xl:flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium bg-[var(--surface-2)] border border-[var(--line)] text-[var(--text-dim)]"
+              title={
+                syncStatus === 'synced'
+                  ? 'Dados salvos localmente e sincronizados com sua conta'
+                  : syncStatus === 'pending'
+                  ? 'Alterações locais prontas para sincronizar com sua conta'
+                  : syncStatus === 'error'
+                  ? 'Não foi possível sincronizar agora — seus dados continuam salvos no dispositivo'
+                  : 'Persistência local ativa via LocalStorage'
+              }
             >
-              <HardDrive className="w-3 h-3 text-[var(--positive)]" />
-              <span>Salvo Localmente</span>
+              {syncStatus === 'synced' ? (
+                <>
+                  <Cloud className="w-3 h-3 text-[var(--positive)]" />
+                  <span>Sincronizado</span>
+                </>
+              ) : syncStatus === 'pending' ? (
+                <>
+                  <Loader2 className="w-3 h-3 text-[var(--warn)] animate-spin" />
+                  <span>Sincronizando…</span>
+                </>
+              ) : syncStatus === 'error' ? (
+                <>
+                  <CloudOff className="w-3 h-3 text-[var(--danger)]" />
+                  <span>Sync pendente</span>
+                </>
+              ) : (
+                <>
+                  <HardDrive className="w-3 h-3 text-[var(--positive)]" />
+                  <span>Salvo Localmente</span>
+                </>
+              )}
             </div>
           )}
 

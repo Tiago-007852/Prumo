@@ -1,5 +1,30 @@
 import { User, Account, Transaction, BudgetLimit, ScenarioEvent, Goal, ChatMessage } from '../types';
 
+/**
+ * Datas da demo sempre recentes: ancoradas no mês corrente para que os
+ * lançamentos iniciais caiam dentro do mês em curso e as métricas do painel
+ * ("Receitas do Mês", orçamentos, gráfico de 30 dias) nunca fiquem vazias.
+ * O dia é limitado ao dia atual para não gerar lançamentos "do futuro".
+ */
+function currentMonthDay(day: number): string {
+  const now = new Date();
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const safeDay = Math.max(1, Math.min(day, now.getDate(), daysInMonth));
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  return `${now.getFullYear()}-${mm}-${String(safeDay).padStart(2, '0')}`;
+}
+
+function currentMonthTimestamp(day: number, hour = 12, minute = 0): string {
+  return `${currentMonthDay(day)}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00Z`;
+}
+
+/** Mês 'YYYY-MM' N meses no futuro (prazos de metas da demo). */
+function monthsAhead(n: number): string {
+  const d = new Date();
+  d.setMonth(d.getMonth() + n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
 export const INITIAL_USER_BR: User = {
   id: 'usr_br_01',
   name: 'Mariana Duarte',
@@ -13,7 +38,7 @@ export const INITIAL_USER_BR: User = {
     primaryGoal: 'Reserva de Emergência de 6 Meses',
     goalTargetValue: 36000,
     goalSavedValue: 24500,
-    goalDeadline: '2026-12',
+    goalDeadline: monthsAhead(3),
     monthlyIncomeExpectation: 9500,
     experienceLevel: 'intermediario',
   },
@@ -32,7 +57,7 @@ export const INITIAL_USER_AO: User = {
     primaryGoal: 'Aquisição de Escritório Próprio em Luanda',
     goalTargetValue: 12000000,
     goalSavedValue: 4800000,
-    goalDeadline: '2027-06',
+    goalDeadline: monthsAhead(9),
     monthlyIncomeExpectation: 1400000,
     experienceLevel: 'avancado',
   },
@@ -48,7 +73,7 @@ export const INITIAL_ACCOUNTS_BR: Account[] = [
     kind: 'checking',
     balance: 14850.75,
     currency: 'BRL',
-    lastSyncedAt: '2026-09-21T17:30:00Z',
+    lastSyncedAt: currentMonthTimestamp(20, 17, 30),
     status: 'connected',
     accountNumberMask: '•••• 3812',
   },
@@ -61,7 +86,7 @@ export const INITIAL_ACCOUNTS_BR: Account[] = [
     kind: 'investment',
     balance: 9650.0,
     currency: 'BRL',
-    lastSyncedAt: '2026-09-21T16:45:00Z',
+    lastSyncedAt: currentMonthTimestamp(20, 16, 45),
     status: 'connected',
     accountNumberMask: '•••• 9104',
   },
@@ -73,7 +98,7 @@ export const INITIAL_ACCOUNTS_BR: Account[] = [
     kind: 'savings',
     balance: 1500.0,
     currency: 'BRL',
-    lastSyncedAt: '2026-09-20T12:00:00Z',
+    lastSyncedAt: currentMonthTimestamp(19, 12, 0),
     status: 'manual',
     accountNumberMask: 'Manual',
   },
@@ -89,7 +114,7 @@ export const INITIAL_ACCOUNTS_AO: Account[] = [
     kind: 'checking',
     balance: 3850000,
     currency: 'AOA',
-    lastSyncedAt: '2026-09-21T15:00:00Z',
+    lastSyncedAt: currentMonthTimestamp(20, 15, 0),
     status: 'manual',
     accountNumberMask: '•••• 7721',
   },
@@ -102,7 +127,7 @@ export const INITIAL_ACCOUNTS_AO: Account[] = [
     kind: 'savings',
     balance: 950000,
     currency: 'AOA',
-    lastSyncedAt: '2026-09-20T11:00:00Z',
+    lastSyncedAt: currentMonthTimestamp(19, 11, 0),
     status: 'manual',
     accountNumberMask: '•••• 1042',
   },
@@ -118,8 +143,8 @@ export const INITIAL_TRANSACTIONS_BR: Transaction[] = [
     type: 'income',
     category: 'Salário / Honorários',
     source: 'auto_import',
-    occurredAt: '2026-09-05',
-    createdAt: '2026-09-05T14:00:00Z',
+    occurredAt: currentMonthDay(5),
+    createdAt: currentMonthTimestamp(5, 14, 0),
     merchant: 'Veloce Studio',
   },
   {
@@ -131,8 +156,8 @@ export const INITIAL_TRANSACTIONS_BR: Transaction[] = [
     type: 'expense',
     category: 'Moradia',
     source: 'auto_import',
-    occurredAt: '2026-09-08',
-    createdAt: '2026-09-08T09:00:00Z',
+    occurredAt: currentMonthDay(8),
+    createdAt: currentMonthTimestamp(8, 9, 0),
     merchant: 'QuintoAndar',
   },
   {
@@ -144,8 +169,8 @@ export const INITIAL_TRANSACTIONS_BR: Transaction[] = [
     type: 'expense',
     category: 'Alimentação',
     source: 'auto_import',
-    occurredAt: '2026-09-12',
-    createdAt: '2026-09-12T18:30:00Z',
+    occurredAt: currentMonthDay(12),
+    createdAt: currentMonthTimestamp(12, 18, 30),
     merchant: 'St. Marche Jardins',
   },
   {
@@ -157,8 +182,8 @@ export const INITIAL_TRANSACTIONS_BR: Transaction[] = [
     type: 'expense',
     category: 'Serviços & Assinaturas',
     source: 'ai_categorized',
-    occurredAt: '2026-09-14',
-    createdAt: '2026-09-14T08:00:00Z',
+    occurredAt: currentMonthDay(14),
+    createdAt: currentMonthTimestamp(14, 8, 0),
     merchant: 'Adobe Systems',
   },
   {
@@ -170,8 +195,8 @@ export const INITIAL_TRANSACTIONS_BR: Transaction[] = [
     type: 'expense',
     category: 'Transporte',
     source: 'auto_import',
-    occurredAt: '2026-09-17',
-    createdAt: '2026-09-17T20:15:00Z',
+    occurredAt: currentMonthDay(17),
+    createdAt: currentMonthTimestamp(17, 20, 15),
     merchant: 'Uber do Brasil',
   },
   {
@@ -183,8 +208,8 @@ export const INITIAL_TRANSACTIONS_BR: Transaction[] = [
     type: 'income',
     category: 'Rendimento / Investimento',
     source: 'auto_import',
-    occurredAt: '2026-09-18',
-    createdAt: '2026-09-18T07:00:00Z',
+    occurredAt: currentMonthDay(18),
+    createdAt: currentMonthTimestamp(18, 7, 0),
     merchant: 'Itaú Unibanco',
   },
   {
@@ -196,8 +221,8 @@ export const INITIAL_TRANSACTIONS_BR: Transaction[] = [
     type: 'expense',
     category: 'Alimentação',
     source: 'manual',
-    occurredAt: '2026-09-19',
-    createdAt: '2026-09-19T22:00:00Z',
+    occurredAt: currentMonthDay(19),
+    createdAt: currentMonthTimestamp(19, 22, 0),
     merchant: 'Restaurante Arturito',
   },
 ];
@@ -212,8 +237,8 @@ export const INITIAL_TRANSACTIONS_AO: Transaction[] = [
     type: 'income',
     category: 'Salário / Honorários',
     source: 'manual',
-    occurredAt: '2026-09-04',
-    createdAt: '2026-09-04T11:00:00Z',
+    occurredAt: currentMonthDay(4),
+    createdAt: currentMonthTimestamp(4, 11, 0),
     merchant: 'Unitel Angola',
   },
   {
@@ -225,8 +250,8 @@ export const INITIAL_TRANSACTIONS_AO: Transaction[] = [
     type: 'expense',
     category: 'Moradia',
     source: 'manual',
-    occurredAt: '2026-09-06',
-    createdAt: '2026-09-06T10:00:00Z',
+    occurredAt: currentMonthDay(6),
+    createdAt: currentMonthTimestamp(6, 10, 0),
     merchant: 'Imobiliária Luanda',
   },
   {
@@ -238,8 +263,8 @@ export const INITIAL_TRANSACTIONS_AO: Transaction[] = [
     type: 'expense',
     category: 'Alimentação',
     source: 'manual',
-    occurredAt: '2026-09-11',
-    createdAt: '2026-09-11T16:00:00Z',
+    occurredAt: currentMonthDay(11),
+    createdAt: currentMonthTimestamp(11, 16, 0),
     merchant: 'Kero Hipermercado',
   },
   {
@@ -251,8 +276,8 @@ export const INITIAL_TRANSACTIONS_AO: Transaction[] = [
     type: 'expense',
     category: 'Transporte',
     source: 'manual',
-    occurredAt: '2026-09-15',
-    createdAt: '2026-09-15T09:00:00Z',
+    occurredAt: currentMonthDay(15),
+    createdAt: currentMonthTimestamp(15, 9, 0),
     merchant: 'Sonangol Distribuidora',
   },
   {
@@ -264,8 +289,8 @@ export const INITIAL_TRANSACTIONS_AO: Transaction[] = [
     type: 'expense',
     category: 'Serviços & Assinaturas',
     source: 'ai_categorized',
-    occurredAt: '2026-09-16',
-    createdAt: '2026-09-16T12:00:00Z',
+    occurredAt: currentMonthDay(16),
+    createdAt: currentMonthTimestamp(16, 12, 0),
     merchant: 'Starlink Luanda',
   },
 ];
@@ -372,7 +397,7 @@ export const INITIAL_CHAT_MESSAGES_BR: ChatMessage[] = [
     role: 'assistant',
     content:
       'Olá, Mariana! Sou o Prumo, seu copiloto financeiro. Já analisei seu saldo agregado de R$ 26.000,75 e sua taxa de poupança atual de 51.5%. Como posso ajudar hoje com sua reserva de emergência ou na simulação de novos contratos?',
-    createdAt: '2026-09-21T18:00:00Z',
+    createdAt: currentMonthTimestamp(20, 18, 0),
     suggestedAction: {
       label: 'Simular impacto do novo cliente',
       actionType: 'open_scenario',
@@ -387,7 +412,7 @@ export const INITIAL_CHAT_MESSAGES_AO: ChatMessage[] = [
     role: 'assistant',
     content:
       'Olá, António! Sou o Prumo, o seu copiloto financeiro. Consolidei as suas contas no BAI e BFA com saldo total de Kz 4.800.000,00. As suas despesas essenciais estão dentro dos limites deste mês. Em que posso ser útil com o plano para o escritório próprio?',
-    createdAt: '2026-09-21T18:00:00Z',
+    createdAt: currentMonthTimestamp(20, 18, 0),
     suggestedAction: {
       label: 'Ver projeção da meta',
       actionType: 'check_goal',

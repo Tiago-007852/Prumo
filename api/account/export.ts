@@ -1,0 +1,22 @@
+import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { requireUser, unauthorized } from '../../lib/http';
+import { exportUserData } from '../../lib/userData';
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'GET') {
+    return res.status(405).json({ error: 'Método não permitido. Use GET.' });
+  }
+
+  const user = await requireUser(req);
+  if (!user) return unauthorized(res);
+
+  try {
+    const data = await exportUserData(user.id);
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="prumo_meus_dados_${user.id}.json"`);
+    return res.status(200).json(data);
+  } catch (err: any) {
+    console.error('Erro no export (serverless):', err);
+    return res.status(500).json({ error: err?.message || 'Falha ao exportar dados' });
+  }
+}
