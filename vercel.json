@@ -3,9 +3,8 @@
   "installCommand": "bun install",
   "buildCommand": "vite build",
   "functions": {
-    "api/*.ts": {
-      "runtime": "@vercel/node@5",
-      "includeFiles": "prompts/**"
+    "api/**/*.ts": {
+      "includeFiles": ["prompts/**", "../prompts/**"]
     }
   }
 }
