@@ -34,7 +34,14 @@ export const LoginView: React.FC<LoginViewProps> = ({ onAuthSuccess, onGuestMode
           : await login(email, password);
       onAuthSuccess({ id: user.id, email: user.email, name: user.name, country: user.country });
     } catch (err: any) {
-      setError(err?.message || 'Não foi possível continuar.');
+      const msg = String(err?.message || '');
+      const networkError =
+        msg.includes('fetch') || msg.includes('network') || msg.includes('NetworkError');
+      setError(
+        networkError
+          ? 'Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente em instantes — seus dados locais continuam salvos.'
+          : err?.message || 'Não foi possível continuar.'
+      );
     } finally {
       setBusy(false);
     }
