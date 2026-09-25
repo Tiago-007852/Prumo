@@ -4,6 +4,18 @@
 
 export type Country = 'BR' | 'AO';
 
+export type IncomeType = 'fixa' | 'variavel' | 'mista';
+
+export type GoalType =
+  | 'reserva'
+  | 'quitar_divida'
+  | 'casa'
+  | 'carro'
+  | 'educacao'
+  | 'negocio'
+  | 'outra'
+  | 'nenhuma';
+
 export interface UserProfile {
   profession: string;
   primaryGoal: string;
@@ -12,6 +24,10 @@ export interface UserProfile {
   goalDeadline: string; // YYYY-MM
   monthlyIncomeExpectation: number;
   experienceLevel?: 'iniciante' | 'intermediario' | 'avancado';
+  /** Tipo de renda informado no onboarding (calibra alertas de reserva). */
+  incomeType?: IncomeType;
+  /** Tipo da meta principal (personaliza o copiloto e sugestões). */
+  goalType?: GoalType;
 }
 
 export interface User {
@@ -23,6 +39,8 @@ export interface User {
   createdAt: string;
   profile: UserProfile;
   twoFactorEnabled?: boolean;
+  /** false = wizard de onboarding pendente (contas reais recém-criadas). */
+  onboardingCompleted?: boolean;
 }
 
 export type AccountProvider = 'open_finance' | 'manual';

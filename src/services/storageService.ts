@@ -3,6 +3,9 @@
  * Gerencia o armazenamento durável em LocalStorage/IndexedDB para garantir
  * que todos os dados financeiros, orçamentos, contas e novos lançamentos
  * funcionem perfeitamente sem conexão com a internet.
+ *
+ * Contas reais nascem VAZIAS (sem dados fictícios). O mock de demonstração
+ * é usado exclusivamente no modo "Explorar demonstração sem conta".
  */
 
 import {
@@ -45,10 +48,56 @@ export interface CountryDataState {
 
 const STORAGE_PREFIX = 'prumo_v1_';
 
-export function getStorageKey(country: Country): string {
-  return `${STORAGE_PREFIX}state_${country}`;
+/**
+ * Chave de armazenamento. Usuários autenticados têm estado isolado por
+ * usuário+país; a chave sem usuário é reservada ao modo demonstração.
+ */
+export function getStorageKey(country: Country, userId?: string | null): string {
+  return userId
+    ? `${STORAGE_PREFIX}state_${country}_u_${userId}`
+    : `${STORAGE_PREFIX}state_${country}`;
 }
 
+/**
+ * Cria o perfil de um usuário real rec-registrado: estado vazio, sem nenhum
+ * dado fictício. O onboarding (wizard) preenche o perfil logo em seguida.
+ */
+export function createNewUser(name: string, email: string, country: Country): User {
+  return {
+    id: `usr_${country.toLowerCase()}_${Date.now().toString(36)}`,
+    name: name || 'Novo usuário',
+    email,
+    country,
+    locale: country === 'BR' ? 'pt-BR' : 'pt-AO',
+    createdAt: new Date().toISOString(),
+    onboardingCompleted: false,
+    profile: {
+      profession: '',
+      primaryGoal: '',
+      goalTargetValue: 0,
+      goalSavedValue: 0,
+      goalDeadline: '',
+      monthlyIncomeExpectation: 0,
+    },
+  };
+}
+
+/** Estado completamente vazio (contas reais): nada fictício, nada de demo. */
+export function getEmptyCountryState(user: User): CountryDataState {
+  return {
+    user,
+    accounts: [],
+    transactions: [],
+    budgetLimits: [],
+    scenarioEvents: [],
+    chatMessages: [],
+    goals: [],
+    offlineQueue: [],
+    lastSavedAt: new Date().toISOString(),
+  };
+}
+
+/** Estado padrão do modo DEMONSTRAÇÃO (dados fictícios do país). */
 export function getDefaultCountryState(country: Country): CountryDataState {
   if (country === 'BR') {
     return {
@@ -77,17 +126,32 @@ export function getDefaultCountryState(country: Country): CountryDataState {
   }
 }
 
+export interface StorageOwner {
+  userId: string | null;
+  name?: string;
+  email?: string;
+}
+
 /**
  * Carrega os dados salvos do país no LocalStorage.
- * Se não houver nada salvo ou se estiver corrompido, inicializa com o estado padrão do país.
+ * - Com `owner.userId` (conta real): sem dados salvos → estado VAZIO com o
+ *   perfil novo (wizard de onboarding preencherá). Nunca semeia mock.
+ * - Sem `owner.userId` (demo): sem dados salvos → estado fictício do país.
  */
-export function loadCountryData(country: Country): CountryDataState {
-  const key = getStorageKey(country);
+export function loadCountryData(country: Country, owner?: StorageOwner): CountryDataState {
+  const key = getStorageKey(country, owner?.userId);
+  const isRealUser = !!owner?.userId;
+
+  const defaultsFor = (): CountryDataState =>
+    isRealUser
+      ? getEmptyCountryState(createNewUser(owner?.name || '', owner?.email || '', country))
+      : getDefaultCountryState(country);
+
   try {
     const raw = localStorage.getItem(key);
     if (!raw) {
-      const defaultState = getDefaultCountryState(country);
-      saveCountryData(country, defaultState);
+      const defaultState = defaultsFor();
+      saveCountryData(country, defaultState, owner?.userId);
       return defaultState;
     }
 
@@ -96,27 +160,27 @@ export function loadCountryData(country: Country): CountryDataState {
     // Validações básicas de sanidade
     if (!parsed.user || !Array.isArray(parsed.transactions) || !Array.isArray(parsed.accounts)) {
       console.warn(`[Prumo Storage] Dados locais corrompidos para ${country}, reinicializando.`);
-      const defaultState = getDefaultCountryState(country);
-      saveCountryData(country, defaultState);
+      const defaultState = defaultsFor();
+      saveCountryData(country, defaultState, owner?.userId);
       return defaultState;
     }
 
     return {
-      ...getDefaultCountryState(country),
+      ...defaultsFor(),
       ...parsed,
       offlineQueue: parsed.offlineQueue || [],
     };
   } catch (err) {
     console.error(`[Prumo Storage] Erro ao carregar dados locais para ${country}:`, err);
-    return getDefaultCountryState(country);
+    return defaultsFor();
   }
 }
 
 /**
  * Salva atomicamente o estado completo do país no LocalStorage.
  */
-export function saveCountryData(country: Country, data: CountryDataState): void {
-  const key = getStorageKey(country);
+export function saveCountryData(country: Country, data: CountryDataState, userId?: string | null): void {
+  const key = getStorageKey(country, userId);
   try {
     const payload: CountryDataState = {
       ...data,
@@ -131,8 +195,8 @@ export function saveCountryData(country: Country, data: CountryDataState): void 
 /**
  * Registra uma transação feita em modo offline no storage local
  */
-export function saveOfflineTransaction(country: Country, tx: Transaction): CountryDataState {
-  const current = loadCountryData(country);
+export function saveOfflineTransaction(country: Country, tx: Transaction, userId?: string | null): CountryDataState {
+  const current = loadCountryData(country, { userId: userId ?? null });
   const updatedTransactions = [tx, ...current.transactions];
   const updatedQueue = [...(current.offlineQueue || []), tx];
 
@@ -153,16 +217,32 @@ export function saveOfflineTransaction(country: Country, tx: Transaction): Count
     lastSavedAt: new Date().toISOString(),
   };
 
-  saveCountryData(country, nextState);
+  saveCountryData(country, nextState, userId);
   return nextState;
 }
 
 /**
- * Restaura o estado para os dados de demonstração originais do país
+ * Restaura o estado padrão:
+ * - Conta real: mantém a identidade do usuário e zera TODOS os dados.
+ * - Demo: restaura os dados fictícios do país.
  */
-export function resetCountryData(country: Country): CountryDataState {
-  const defaultState = getDefaultCountryState(country);
-  saveCountryData(country, defaultState);
+export function resetCountryData(country: Country, owner?: StorageOwner): CountryDataState {
+  let defaultState: CountryDataState;
+  if (owner?.userId) {
+    const existing = loadCountryData(country, owner);
+    defaultState = {
+      ...getEmptyCountryState({
+        ...createNewUser(existing.user.name, existing.user.email, country),
+        id: existing.user.id,
+        createdAt: existing.user.createdAt,
+        profile: existing.user.profile,
+        onboardingCompleted: true,
+      }),
+    };
+  } else {
+    defaultState = getDefaultCountryState(country);
+  }
+  saveCountryData(country, defaultState, owner?.userId);
   return defaultState;
 }
 

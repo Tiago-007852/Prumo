@@ -3,11 +3,13 @@ import { Compass, Sparkles, Lock, Mail, User as UserIcon, Globe, WifiOff } from 
 
 interface LoginViewProps {
   onAuthSuccess: (user: { id: string; email: string; name: string; country: 'BR' | 'AO' }) => void;
+  /** Chamado quando a conta acabou de ser criada (dispara o onboarding). */
+  onRegistered: (user: { id: string; email: string; name: string; country: 'BR' | 'AO' }) => void;
   onGuestMode: () => void;
   isOnline: boolean;
 }
 
-export const LoginView: React.FC<LoginViewProps> = ({ onAuthSuccess, onGuestMode, isOnline }) => {
+export const LoginView: React.FC<LoginViewProps> = ({ onAuthSuccess, onRegistered, onGuestMode, isOnline }) => {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -28,11 +30,13 @@ export const LoginView: React.FC<LoginViewProps> = ({ onAuthSuccess, onGuestMode
     setBusy(true);
     try {
       const { register, login } = await import('../services/authService');
-      const user =
-        mode === 'register'
-          ? await register(email, password, name, country)
-          : await login(email, password);
-      onAuthSuccess({ id: user.id, email: user.email, name: user.name, country: user.country });
+      if (mode === 'register') {
+        const user = await register(email, password, name, country);
+        onRegistered({ id: user.id, email: user.email, name: user.name, country: user.country });
+      } else {
+        const user = await login(email, password);
+        onAuthSuccess({ id: user.id, email: user.email, name: user.name, country: user.country });
+      }
     } catch (err: any) {
       const msg = String(err?.message || '');
       const networkError =

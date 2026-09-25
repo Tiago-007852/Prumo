@@ -15,6 +15,7 @@ import {
   generatePredictiveAlerts,
 } from '../services/businessRules';
 import {
+  Compass,
   TrendingUp,
   TrendingDown,
   PiggyBank,
@@ -141,6 +142,51 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Empty state: usuário real recém-onboarded, sem dados ainda */}
+      {accounts.length === 0 && transactions.length === 0 && (
+        <div
+          id="dashboard-empty-state"
+          className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-8 text-center shadow-xs"
+        >
+          <div className="w-14 h-14 mx-auto rounded-2xl bg-[var(--accent-soft)] flex items-center justify-center text-[var(--accent)] mb-4">
+            <Compass className="w-7 h-7" />
+          </div>
+          <h2 className="font-serif-display text-xl font-bold text-[var(--text)]">
+            Tudo pronto, {user.name?.split(' ')[0] || 'vamos lá'}! Seus números começam aqui.
+          </h2>
+          <p className="text-sm text-[var(--text-dim)] max-w-md mx-auto mt-2 leading-relaxed">
+            Registre seu primeiro lançamento para o painel ganhar vida — as métricas, alertas e
+            projeções refletem <strong className="text-[var(--text)]">apenas os seus dados reais</strong>.
+          </p>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-2.5 mt-5">
+            <button
+              type="button"
+              onClick={onOpenNewTransaction}
+              className="flex items-center gap-1.5 px-4 py-2.5 text-sm font-semibold rounded-lg bg-[var(--accent)] text-white hover:opacity-90 transition-opacity shadow-xs cursor-pointer"
+            >
+              <PlusCircle className="w-4 h-4" />
+              Registrar primeiro lançamento
+            </button>
+            <button
+              type="button"
+              onClick={onOpenConnectAccount}
+              className="flex items-center gap-1.5 px-4 py-2.5 text-sm font-semibold rounded-lg border border-[var(--line)] bg-[var(--surface-2)] text-[var(--text)] hover:bg-[var(--line)]/30 transition-colors cursor-pointer"
+            >
+              <Building2 className="w-4 h-4" />
+              Adicionar conta
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigate('copilot')}
+              className="flex items-center gap-1.5 px-4 py-2.5 text-sm font-semibold rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[var(--text-dim)] hover:text-[var(--text)] transition-colors cursor-pointer"
+            >
+              <Sparkles className="w-4 h-4 text-[var(--accent)]" />
+              Falar com o copiloto
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Alertas Preditivos (Regra de Negócio) */}
       {alerts.length > 0 && (

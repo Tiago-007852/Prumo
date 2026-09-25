@@ -17,20 +17,6 @@ import {
   FinancialSnapshot,
 } from './types';
 import {
-  INITIAL_USER_BR,
-  INITIAL_USER_AO,
-  INITIAL_ACCOUNTS_BR,
-  INITIAL_ACCOUNTS_AO,
-  INITIAL_TRANSACTIONS_BR,
-  INITIAL_TRANSACTIONS_AO,
-  INITIAL_BUDGETS_BR,
-  INITIAL_BUDGETS_AO,
-  INITIAL_SCENARIO_EVENTS_BR,
-  INITIAL_SCENARIO_EVENTS_AO,
-  INITIAL_CHAT_MESSAGES_BR,
-  INITIAL_CHAT_MESSAGES_AO,
-} from './data/mockData';
-import {
   calculateAggregatedBalance,
   calculateTotals,
   analyzeBudgets,
@@ -53,11 +39,15 @@ import {
   loadCountryData,
   saveCountryData,
   resetCountryData,
+  createNewUser,
+  getEmptyCountryState,
   getStoredActiveCountry,
   setStoredActiveCountry,
   getStoredTheme,
   setStoredTheme,
+  type StorageOwner,
 } from './services/storageService';
+import { OnboardingWizard, type OnboardingResult } from './components/OnboardingWizard';
 import {
   fetchMe,
   logout as authLogout,
@@ -67,6 +57,39 @@ import {
 } from './services/authService';
 import { pushState, pullState, type SyncStatus } from './services/syncService';
 import { Info, Lock, Compass } from 'lucide-react';
+
+/**
+ * Mensagem de boas-vindas do copiloto: sempre com os dados REAIS do usuário
+ * (nome, contas cadastradas e meta), nunca números fictícios.
+ */
+function buildWelcomeMessage(
+  name: string,
+  country: Country,
+  accounts: Account[],
+  primaryGoal: string
+): ChatMessage {
+  const hasAccounts = accounts.length > 0;
+  const balance = calculateAggregatedBalance(accounts);
+  const currency = country === 'BR' ? 'R$' : 'Kz';
+  const balanceLine = hasAccounts
+    ? `Seu saldo inicial registrado é de **${currency} ${balance.toLocaleString(country === 'BR' ? 'pt-BR' : 'pt-AO')}** em ${accounts.length} conta(s).`
+    : 'Você ainda não cadastrou contas — dá para adicionar quando quiser na aba **Contas**.';
+
+  return {
+    id: `msg_welcome_${Date.now()}`,
+    userId: 'current-user',
+    role: 'assistant',
+    content: `Olá, ${name || 'tudo bem'}! Sou o Prumo, seu copiloto financeiro. ${balanceLine}
+
+Sua meta atual é **${primaryGoal || 'organizar suas finanças'}**. Para eu te ajudar de verdade, o próximo passo é registrar seus lançamentos — cada lançamento melhora as análises, os alertas e as projeções.
+
+Por onde quer começar?`,
+    createdAt: new Date().toISOString(),
+    suggestedAction: hasAccounts
+      ? { label: 'Registrar primeiro lançamento', actionType: 'add_transaction' }
+      : { label: 'Adicionar conta', actionType: 'view_budget' },
+  };
+}
 
 export default function App() {
   // 1. Country & Theme
@@ -101,8 +124,18 @@ export default function App() {
 
   // 3. Modals
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [pendingOnboarding, setPendingOnboarding] = useState(false);
 
-  // 4. State Storage (carregado diretamente do LocalStorage do país ativo)
+  // 4. State Storage (LocalStorage por país; contas reais com estado vazio)
+  const storageOwner: StorageOwner = useMemo(
+    () => ({
+      userId: authStatus === 'authed' && authUser ? authUser.id : null,
+      name: authUser?.name,
+      email: authUser?.email,
+    }),
+    [authStatus, authUser]
+  );
+
   const [user, setUser] = useState<User>(() => loadCountryData(getStoredActiveCountry()).user);
   const [accounts, setAccounts] = useState<Account[]>(() => loadCountryData(getStoredActiveCountry()).accounts);
   const [transactions, setTransactions] = useState<Transaction[]>(() => loadCountryData(getStoredActiveCountry()).transactions);
@@ -111,7 +144,49 @@ export default function App() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => loadCountryData(getStoredActiveCountry()).chatMessages);
   const [goals, setGoals] = useState<Goal[]>(() => loadCountryData(getStoredActiveCountry()).goals || []);
 
-  // Persistir automaticamente qualquer alteração no LocalStorage
+  // Aplicar o seed correto quando a sessão é resolvida: conta real → estado
+  // vazio próprio; restauração de sessão existente → estado salvo do usuário.
+  const [seedAppliedFor, setSeedAppliedFor] = useState<string | null>(null);
+  useEffect(() => {
+    if (authStatus === 'checking') return;
+    const ownerId = storageOwner.userId || 'demo';
+    if (seedAppliedFor === ownerId) return;
+    setSeedAppliedFor(ownerId);
+    if (authStatus === 'authed' && authUser) {
+      // Sessão restaurada ao abrir: puxa o estado salvo no servidor; se não
+      // houver (conta nova), começa com estado vazio (sem nada fictício).
+      (async () => {
+        const pulled = await pullState();
+        if (pulled?.state && typeof pulled.state === 'object') {
+          applyServerState(pulled.state, authUser.country);
+          setSyncStatus('synced');
+        } else {
+          const fresh = loadCountryData(authUser.country, storageOwner);
+          setUser(fresh.user);
+          setAccounts(fresh.accounts);
+          setTransactions(fresh.transactions);
+          setBudgetLimits(fresh.budgetLimits);
+          setScenarioEvents(fresh.scenarioEvents);
+          setChatMessages(fresh.chatMessages);
+          setGoals(fresh.goals || []);
+          setCountry(authUser.country);
+          setStoredActiveCountry(authUser.country);
+        }
+      })();
+    } else if (authStatus === 'demo') {
+      const demo = loadCountryData(country); // sem userId → mock do país
+      setUser(demo.user);
+      setAccounts(demo.accounts);
+      setTransactions(demo.transactions);
+      setBudgetLimits(demo.budgetLimits);
+      setScenarioEvents(demo.scenarioEvents);
+      setChatMessages(demo.chatMessages);
+      setGoals(demo.goals || []);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authStatus, seedAppliedFor]);
+
+  // Persistir automaticamente qualquer alteração no LocalStorage (escopo: dono atual)
   useEffect(() => {
     saveCountryData(country, {
       user,
@@ -122,8 +197,8 @@ export default function App() {
       chatMessages,
       goals,
       lastSavedAt: new Date().toISOString(),
-    });
-  }, [country, user, accounts, transactions, budgetLimits, scenarioEvents, chatMessages, goals]);
+    }, storageOwner.userId);
+  }, [country, user, accounts, transactions, budgetLimits, scenarioEvents, chatMessages, goals, storageOwner.userId]);
 
   // Aplica estado vindo do servidor (restauro em novo dispositivo/login)
   const applyServerState = (serverState: unknown, targetCountry: Country) => {
@@ -144,7 +219,8 @@ export default function App() {
     setGoals(arr<Goal>(s.goals));
   };
 
-  // Restaura sessão existente (cookie httpOnly) ao carregar o app
+  // Restaura sessão existente (cookie httpOnly) ao carregar o app.
+  // O seed/pull do estado é feito no efeito de seed (acima) quando authStatus muda.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -153,15 +229,6 @@ export default function App() {
       if (me) {
         setAuthUser(me);
         setAuthStatus('authed');
-        setUser((prev) => ({ ...prev, name: me.name, email: me.email, country: me.country }));
-        const pulled = await pullState();
-        if (cancelled) return;
-        if (pulled?.state && typeof pulled.state === 'object') {
-          applyServerState(pulled.state, me.country);
-          setSyncStatus('synced');
-        } else {
-          setSyncStatus('pending'); // efeito de auto-push envia o estado local
-        }
       } else {
         setAuthStatus('guest');
       }
@@ -169,27 +236,92 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Modo demonstração: sessão verificada mas sem conta (dados só locais)
   const isDemoMode = authStatus === 'demo';
 
-  // Pós-login/registro: restaura estado do servidor ou marca para o primeiro push
-  const handleAuthSuccess = async (account: AuthUser) => {
+  // Pós-login/registro: restaura estado do servidor, marca o onboarding pendente
+  // e aciona o auto-push para persistir o estado vazio do usuário novo.
+  const handleAuthSuccess = async (account: AuthUser, justRegistered: boolean) => {
     setAuthUser(account);
     setAuthStatus('authed');
-    setUser((prev) => ({ ...prev, name: account.name, email: account.email, country: account.country }));
-    if (account.country !== country) {
-      handleCountryChange(account.country);
+    if (justRegistered) {
+      // Conta recém-criada: estado vazio com a identidade real (sem mock).
+      const freshUser: User = {
+        ...createNewUser(account.name, account.email, account.country),
+        id: account.id,
+      };
+      const empty = getEmptyCountryState(freshUser);
+      setUser(empty.user);
+      setAccounts(empty.accounts);
+      setTransactions(empty.transactions);
+      setBudgetLimits(empty.budgetLimits);
+      setScenarioEvents(empty.scenarioEvents);
+      setChatMessages(empty.chatMessages);
+      setGoals(empty.goals);
+      setCountry(account.country);
+      setStoredActiveCountry(account.country);
+      setPendingOnboarding(true);
+      setSyncStatus('pending');
+      return;
     }
+    setUser((prev) => ({ ...prev, name: account.name, email: account.email, country: account.country }));
     const pulled = await pullState();
     if (pulled?.state && typeof pulled.state === 'object') {
       applyServerState(pulled.state, account.country);
       setSyncStatus('synced');
+      const serverUser = (pulled.state as Record<string, unknown>).user as Partial<User> | undefined;
+      setPendingOnboarding(serverUser?.onboardingCompleted === false);
     } else {
       setSyncStatus('pending');
     }
+  };
+
+  // Conclusão do onboarding: aplica perfil + contas + orçamentos informados
+  const handleOnboardingComplete = (result: OnboardingResult) => {
+    setUser((prev) => ({
+      ...prev,
+      profile: { ...prev.profile, ...result.profile },
+      onboardingCompleted: true,
+    }));
+    const newAccounts: Account[] = result.accounts.map((a, i) => ({
+      ...a,
+      id: `acc_${Date.now()}_${i}`,
+      userId: user.id,
+    }));
+    setAccounts(newAccounts);
+    setBudgetLimits(
+      result.budgetLimits.map((b, i) => ({
+        id: `bd_${Date.now()}_${i}`,
+        userId: user.id,
+        category: b.category,
+        monthlyLimit: b.monthlyLimit,
+      }))
+    );
+    setChatMessages([
+      buildWelcomeMessage(user.name, user.country, newAccounts, result.profile.primaryGoal),
+    ]);
+    setPendingOnboarding(false);
+    setSyncStatus('pending');
+    setActiveTab('overview');
+  };
+
+  // Skip do onboarding: marca como completo com perfil mínimo
+  const handleOnboardingSkip = () => {
+    setUser((prev) => ({
+      ...prev,
+      onboardingCompleted: true,
+      profile: {
+        ...prev.profile,
+        primaryGoal: prev.profile.primaryGoal || 'Organizar minhas finanças',
+      },
+    }));
+    setChatMessages([
+      buildWelcomeMessage(user.name, user.country, [], 'Organizar minhas finanças'),
+    ]);
+    setPendingOnboarding(false);
+    setSyncStatus('pending');
   };
 
   // Auto-push debounced do estado local para o Neon (quando autenticado e online)
@@ -221,6 +353,8 @@ export default function App() {
     setAuthUser(null);
     setAuthStatus('guest');
     setSyncStatus('local');
+    setPendingOnboarding(false);
+    setSeedAppliedFor(null);
   };
 
   // Apply dark mode class to document element
@@ -254,13 +388,13 @@ export default function App() {
       chatMessages,
       goals,
       lastSavedAt: new Date().toISOString(),
-    });
+    }, storageOwner.userId);
 
     setCountry(newCountry);
     setStoredActiveCountry(newCountry);
 
     // Carregar estado persistido do novo país
-    const nextData = loadCountryData(newCountry);
+    const nextData = loadCountryData(newCountry, storageOwner);
     setUser(nextData.user);
     setAccounts(nextData.accounts);
     setTransactions(nextData.transactions);
@@ -270,9 +404,9 @@ export default function App() {
     setGoals(nextData.goals || []);
   };
 
-  // Reset dados para o padrão do país atual
+  // Reset dados: conta real zera tudo; demo restaura os dados fictícios
   const handleResetData = () => {
-    const defaultData = resetCountryData(country);
+    const defaultData = resetCountryData(country, storageOwner);
     setUser(defaultData.user);
     setAccounts(defaultData.accounts);
     setTransactions(defaultData.transactions);
@@ -537,12 +671,25 @@ Todas as ferramentas do Prumo — incluindo registro de lançamentos, verificaç
   if (authStatus === 'guest') {
     return (
       <LoginView
-        onAuthSuccess={handleAuthSuccess}
+        onAuthSuccess={(u) => handleAuthSuccess(u, false)}
+        onRegistered={(u) => handleAuthSuccess(u, true)}
         onGuestMode={() => {
           setAuthStatus('demo');
           setSyncStatus('local');
         }}
         isOnline={isOnline}
+      />
+    );
+  }
+
+  // Wizard de onboarding para contas reais recém-criadas (ou com pendência)
+  if (authStatus === 'authed' && !isDemoMode && pendingOnboarding && !user.onboardingCompleted) {
+    return (
+      <OnboardingWizard
+        name={user.name}
+        country={country}
+        onComplete={handleOnboardingComplete}
+        onSkip={handleOnboardingSkip}
       />
     );
   }
