@@ -1,43 +1,71 @@
 @import "tailwindcss";
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   PRUMO — Sistema de temas (Fase 2: "Meia-noite & Ouro")
+   - Dark (padrão): meia-noite azul-tinta + acentos em ouro champanhe
+   - Light: "Papel & Ouro" — papel quente com tinta profunda
+   O ouro é acento (números, CTAs, gráficos, linha do prumo), nunca fundo.
+   ───────────────────────────────────────────────────────────────────────────── */
+
 :root {
-  --bg: #F6F3EC;
-  --surface: #FFFFFF;
-  --surface-2: #EFEAE0;
-  --line: #DAD3C4;
-  --text: #1B2430;
-  --text-dim: #5C6672;
-  --accent: #B5642B;
-  --accent-soft: rgba(181, 100, 43, 0.12);
-  --positive: #2F7A5C;
-  --positive-soft: rgba(47, 122, 92, 0.12);
-  --warn: #A9781E;
-  --warn-soft: rgba(169, 120, 30, 0.12);
-  --danger: #AC3B32;
-  --danger-soft: rgba(172, 59, 50, 0.12);
+  --bg: #F4F0E6;
+  --surface: #FDFBF7;
+  --surface-2: #EBE5D6;
+  --line: #D8CFBB;
+  --text: #17212B;
+  --text-dim: #5D6873;
+  /* Ouro sobre papel: escurecido para contraste AA em texto/CTA */
+  --accent: #8A6B1F;
+  --accent-bright: #B08D2C;
+  --accent-soft: rgba(176, 141, 44, 0.14);
+  --positive: #1F6E4E;
+  --positive-soft: rgba(31, 110, 78, 0.12);
+  --warn: #94691A;
+  --warn-soft: rgba(148, 105, 26, 0.12);
+  --danger: #A03428;
+  --danger-soft: rgba(160, 52, 40, 0.12);
+  /* Brilho/glows usados na identidade */
+  --gold-glow: rgba(176, 141, 44, 0.35);
+  --ink-glow: rgba(23, 33, 43, 0.08);
 }
 
 .dark {
-  --bg: #12181F;
-  --surface: #1A222B;
-  --surface-2: #232D39;
-  --line: #2D3947;
-  --text: #EDF1F4;
-  --text-dim: #8E9DAE;
-  --accent: #E0975A;
-  --accent-soft: rgba(224, 151, 90, 0.18);
-  --positive: #6FC7A2;
-  --positive-soft: rgba(111, 199, 162, 0.18);
+  --bg: #0B0E14;
+  --surface: #121722;
+  --surface-2: #1A2130;
+  --line: #2A3446;
+  --text: #EDF1F6;
+  --text-dim: #8C99AB;
+  /* Ouro champanhe para dark: vibrante, alto contraste sobre meia-noite */
+  --accent: #D4AF37;
+  --accent-bright: #E6C868;
+  --accent-soft: rgba(212, 175, 55, 0.16);
+  --positive: #4ADE80;
+  --positive-soft: rgba(74, 222, 128, 0.14);
   --warn: #E0B75C;
-  --warn-soft: rgba(224, 183, 92, 0.18);
+  --warn-soft: rgba(224, 183, 92, 0.16);
   --danger: #E2887F;
-  --danger-soft: rgba(226, 136, 127, 0.18);
+  --danger-soft: rgba(226, 136, 127, 0.16);
+  --gold-glow: rgba(212, 175, 55, 0.22);
+  --ink-glow: rgba(0, 0, 0, 0.35);
+}
+
+/* No tema escuro, botões/CTAs dourados recebem texto em tinta (contraste AA
+ * e o visual clássico "botão de ouro"). Aplica-se a quem usa a classe
+ * bg-[var(--accent)]; text-white declarado na mesma classe é sobreposto. */
+.dark .bg-\[var\(--accent\)\] {
+  color: #0B0E14;
+}
+.dark .bg-\[var\(--accent\)\] * {
+  color: inherit;
 }
 
 body {
   background-color: var(--bg);
   color: var(--text);
   font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  /* Textura sutil de grão (2.5%) — toque premium sem imagens externas */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
 }
 
 .font-serif-display {
@@ -46,4 +74,53 @@ body {
 
 .font-sans-ui {
   font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* ─── Animações de entrada (scroll reveal via IntersectionObserver) ─── */
+@keyframes prumo-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.reveal {
+  opacity: 0;
+}
+
+.reveal.reveal-visible {
+  animation: prumo-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* ─── Impressão (Relatório Mensal → PDF) ───
+ * Quando o relatório está aberto, imprime apenas a área .print-area,
+ * sem cabeçalhos, navegação ou rodapés do app. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+  .print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    max-height: none !important;
+    max-width: none !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+  }
+  .print-area * {
+    overflow: visible !important;
+    max-height: none !important;
+  }
 }

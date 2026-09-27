@@ -15,6 +15,7 @@ import {
   ChatMessage,
   UserProfile,
   FinancialSnapshot,
+  RecurrenceRule,
 } from './types';
 import {
   calculateAggregatedBalance,
@@ -23,6 +24,7 @@ import {
   generatePredictiveAlerts,
 } from './services/businessRules';
 import { getAccountAggregator } from './services/accountAggregator';
+import { materializeRecurringTransactions } from './services/recurrenceEngine';
 
 // Subcomponents
 import { Header } from './components/Header';
@@ -33,6 +35,9 @@ import { BudgetsGoalsView } from './components/BudgetsGoalsView';
 import { ScenarioSimulatorView } from './components/ScenarioSimulatorView';
 import { AccountsView } from './components/AccountsView';
 import { CopilotChatView } from './components/CopilotChatView';
+import { OfxImportModal } from './components/OfxImportModal';
+import { RecurrenceManagerModal } from './components/RecurrenceManagerModal';
+import { MonthlyReportModal } from './components/MonthlyReportModal';
 import { ProfileModal } from './components/ProfileModal';
 import { LoginView } from './components/LoginView';
 import {
@@ -48,6 +53,7 @@ import {
   type StorageOwner,
 } from './services/storageService';
 import { OnboardingWizard, type OnboardingResult } from './components/OnboardingWizard';
+import { PlumbLine } from './components/PlumbLine';
 import {
   fetchMe,
   logout as authLogout,
@@ -143,6 +149,14 @@ export default function App() {
   const [scenarioEvents, setScenarioEvents] = useState<ScenarioEvent[]>(() => loadCountryData(getStoredActiveCountry()).scenarioEvents);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => loadCountryData(getStoredActiveCountry()).chatMessages);
   const [goals, setGoals] = useState<Goal[]>(() => loadCountryData(getStoredActiveCountry()).goals || []);
+  const [recurrenceRules, setRecurrenceRules] = useState<RecurrenceRule[]>(
+    () => loadCountryData(getStoredActiveCountry()).recurrenceRules || []
+  );
+
+  // Modais da Fase 1: recorrências, importação OFX e relatório mensal
+  const [isRecurrenceOpen, setIsRecurrenceOpen] = useState(false);
+  const [isOfxOpen, setIsOfxOpen] = useState(false);
+  const [isReportOpen, setIsReportOpen] = useState(false);
 
   // Aplicar o seed correto quando a sessão é resolvida: conta real → estado
   // vazio próprio; restauração de sessão existente → estado salvo do usuário.
@@ -169,6 +183,7 @@ export default function App() {
           setScenarioEvents(fresh.scenarioEvents);
           setChatMessages(fresh.chatMessages);
           setGoals(fresh.goals || []);
+          setRecurrenceRules(fresh.recurrenceRules || []);
           setCountry(authUser.country);
           setStoredActiveCountry(authUser.country);
         }
@@ -182,6 +197,7 @@ export default function App() {
       setScenarioEvents(demo.scenarioEvents);
       setChatMessages(demo.chatMessages);
       setGoals(demo.goals || []);
+      setRecurrenceRules(demo.recurrenceRules || []);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authStatus, seedAppliedFor]);
@@ -196,9 +212,10 @@ export default function App() {
       scenarioEvents,
       chatMessages,
       goals,
+      recurrenceRules,
       lastSavedAt: new Date().toISOString(),
     }, storageOwner.userId);
-  }, [country, user, accounts, transactions, budgetLimits, scenarioEvents, chatMessages, goals, storageOwner.userId]);
+  }, [country, user, accounts, transactions, budgetLimits, scenarioEvents, chatMessages, goals, recurrenceRules, storageOwner.userId]);
 
   // Aplica estado vindo do servidor (restauro em novo dispositivo/login)
   const applyServerState = (serverState: unknown, targetCountry: Country) => {
@@ -217,6 +234,7 @@ export default function App() {
     setScenarioEvents(arr<ScenarioEvent>(s.scenarioEvents));
     setChatMessages(arr<ChatMessage>(s.chatMessages));
     setGoals(arr<Goal>(s.goals));
+    setRecurrenceRules(arr<RecurrenceRule>(s.recurrenceRules));
   };
 
   // Restaura sessão existente (cookie httpOnly) ao carregar o app.
@@ -260,6 +278,7 @@ export default function App() {
       setScenarioEvents(empty.scenarioEvents);
       setChatMessages(empty.chatMessages);
       setGoals(empty.goals);
+      setRecurrenceRules([]);
       setCountry(account.country);
       setStoredActiveCountry(account.country);
       setPendingOnboarding(true);
@@ -337,12 +356,13 @@ export default function App() {
         scenarioEvents,
         chatMessages,
         goals,
+        recurrenceRules,
         lastSavedAt: new Date().toISOString(),
       });
       setSyncStatus(result.ok ? 'synced' : 'error');
     }, 2500);
     return () => clearTimeout(timer);
-  }, [authStatus, isOnline, user, accounts, transactions, budgetLimits, scenarioEvents, chatMessages, goals]);
+  }, [authStatus, isOnline, user, accounts, transactions, budgetLimits, scenarioEvents, chatMessages, goals, recurrenceRules]);
 
   const handleLogout = async () => {
     try {
@@ -387,6 +407,7 @@ export default function App() {
       scenarioEvents,
       chatMessages,
       goals,
+      recurrenceRules,
       lastSavedAt: new Date().toISOString(),
     }, storageOwner.userId);
 
@@ -402,6 +423,7 @@ export default function App() {
     setScenarioEvents(nextData.scenarioEvents);
     setChatMessages(nextData.chatMessages);
     setGoals(nextData.goals || []);
+    setRecurrenceRules(nextData.recurrenceRules || []);
   };
 
   // Reset dados: conta real zera tudo; demo restaura os dados fictícios
@@ -414,6 +436,7 @@ export default function App() {
     setScenarioEvents(defaultData.scenarioEvents);
     setChatMessages(defaultData.chatMessages);
     setGoals(defaultData.goals || []);
+    setRecurrenceRules(defaultData.recurrenceRules || []);
   };
 
   // Profile Save
@@ -441,13 +464,15 @@ export default function App() {
   const handleAddTransaction = (newTx: Omit<Transaction, 'id' | 'createdAt'>) => {
     const created: Transaction = {
       ...newTx,
-      id: `tx_${Date.now()}`,
+      id: `tx_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       createdAt: new Date().toISOString(),
     };
     setTransactions((prev) => [created, ...prev]);
 
-    // Se tiver conta associada, atualizar o saldo da conta
-    if (newTx.accountId) {
+    // Se tiver conta associada, atualizar o saldo da conta — apenas para
+    // lançamentos de hoje ou passados (parcelas futuras não debitam agora).
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (newTx.accountId && created.occurredAt <= todayStr) {
       setAccounts((prev) =>
         prev.map((acc) => {
           if (acc.id === newTx.accountId) {
@@ -463,6 +488,32 @@ export default function App() {
   const handleDeleteTransaction = (id: string) => {
     setTransactions((prev) => prev.filter((t) => t.id !== id));
   };
+
+  // ─── Recorrências (Fase 1) ───
+  const handleAddRecurrenceRule = (rule: Omit<RecurrenceRule, 'id' | 'createdAt'>) => {
+    setRecurrenceRules((prev) => [
+      ...prev,
+      { ...rule, id: `rec_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, createdAt: new Date().toISOString() },
+    ]);
+  };
+
+  const handleToggleRecurrenceRule = (id: string) => {
+    setRecurrenceRules((prev) => prev.map((r) => (r.id === id ? { ...r, active: !r.active } : r)));
+  };
+
+  const handleDeleteRecurrenceRule = (id: string) => {
+    setRecurrenceRules((prev) => prev.filter((r) => r.id !== id));
+  };
+
+  // Materializa lançamentos recorrentes quando as regras mudam (idempotente:
+  // o motor nunca duplica ocorrências já existentes).
+  useEffect(() => {
+    const created = materializeRecurringTransactions(recurrenceRules, transactions, user.id);
+    if (created.length > 0) {
+      setTransactions((prev) => [...created, ...prev]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recurrenceRules]);
 
   // Orçamentos e Metas
   const handleUpdateBudgetLimit = (id: string, newLimit: number) => {
@@ -659,11 +710,17 @@ Todas as ferramentas do Prumo — incluindo registro de lançamentos, verificaç
   // ─── Gate de autenticação ───
   if (authStatus === 'checking') {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-[var(--bg)] text-[var(--text)] gap-3">
-        <div className="w-12 h-12 rounded-xl bg-[var(--accent)] flex items-center justify-center text-white shadow-sm animate-pulse">
-          <Compass className="w-7 h-7" />
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[var(--bg)] text-[var(--text)] gap-2 relative overflow-hidden">
+        <PlumbLine height={280} country={country} className="absolute inset-0 opacity-60" />
+        <div className="relative flex flex-col items-center gap-3">
+          <div
+            className="w-12 h-12 rounded-xl bg-[var(--accent)] flex items-center justify-center shadow-sm animate-pulse"
+            style={{ boxShadow: '0 0 28px var(--gold-glow)' }}
+          >
+            <Compass className="w-7 h-7" />
+          </div>
+          <p className="text-sm text-[var(--text-dim)]">Alinhando o prumo...</p>
         </div>
-        <p className="text-sm text-[var(--text-dim)]">Alinhando o prumo...</p>
       </div>
     );
   }
@@ -716,85 +773,101 @@ Todas as ferramentas do Prumo — incluindo registro de lançamentos, verificaç
         unreadAlertsCount={predictiveAlerts.length}
       />
 
-      {/* Main Content Area */}
+      {/* Main Content Area — cada aba entra com animação de reveal */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         {activeTab === 'overview' && (
-          <DashboardView
-            user={user}
-            country={country}
-            accounts={accounts}
-            transactions={transactions}
-            budgetLimits={budgetLimits}
-            onNavigate={(tab) => setActiveTab(tab)}
-            onOpenNewTransaction={() => setActiveTab('transactions')}
-            onOpenConnectAccount={() => setActiveTab('accounts')}
-            isOnline={isOnline}
-          />
+          <div className="reveal reveal-visible">
+            <DashboardView
+              user={user}
+              country={country}
+              accounts={accounts}
+              transactions={transactions}
+              budgetLimits={budgetLimits}
+              onNavigate={(tab) => setActiveTab(tab)}
+              onOpenNewTransaction={() => setActiveTab('transactions')}
+              onOpenConnectAccount={() => setActiveTab('accounts')}
+              isOnline={isOnline}
+            />
+          </div>
         )}
 
         {activeTab === 'transactions' && (
-          <TransactionsView
-            transactions={transactions}
-            accounts={accounts}
-            country={country}
-            onAddTransaction={handleAddTransaction}
-            onDeleteTransaction={handleDeleteTransaction}
-            isOnline={isOnline}
-          />
+          <div className="reveal reveal-visible">
+            <TransactionsView
+              transactions={transactions}
+              accounts={accounts}
+              country={country}
+              onAddTransaction={handleAddTransaction}
+              onDeleteTransaction={handleDeleteTransaction}
+              isOnline={isOnline}
+              recurringRules={recurrenceRules}
+              onOpenRecurrences={() => setIsRecurrenceOpen(true)}
+              onOpenOfxImport={() => setIsOfxOpen(true)}
+              onOpenReport={() => setIsReportOpen(true)}
+            />
+          </div>
         )}
 
         {activeTab === 'budgets' && (
-          <BudgetsGoalsView
-            user={user}
-            budgetLimits={budgetLimits}
-            transactions={transactions}
-            country={country}
-            goals={goals}
-            onUpdateBudgetLimit={handleUpdateBudgetLimit}
-            onAddBudgetLimit={handleAddBudgetLimit}
-            onAddSavedAmountToPrimaryGoal={handleAddSavedAmountToPrimaryGoal}
-            onAddGoal={handleAddGoal}
-          />
+          <div className="reveal reveal-visible">
+            <BudgetsGoalsView
+              user={user}
+              budgetLimits={budgetLimits}
+              transactions={transactions}
+              country={country}
+              goals={goals}
+              onUpdateBudgetLimit={handleUpdateBudgetLimit}
+              onAddBudgetLimit={handleAddBudgetLimit}
+              onAddSavedAmountToPrimaryGoal={handleAddSavedAmountToPrimaryGoal}
+              onAddGoal={handleAddGoal}
+            />
+          </div>
         )}
 
         {activeTab === 'scenarios' && (
-          <ScenarioSimulatorView
-            user={user}
-            initialBalance={initialBalance}
-            baseMonthlyIncome={totalIncome > 0 ? totalIncome : user.profile.monthlyIncomeExpectation}
-            baseMonthlyExpense={totalExpense > 0 ? totalExpense : 3000}
-            country={country}
-            events={scenarioEvents}
-            onToggleEvent={handleToggleScenarioEvent}
-            onAddEvent={handleAddScenarioEvent}
-            onDeleteEvent={handleDeleteScenarioEvent}
-          />
+          <div className="reveal reveal-visible">
+            <ScenarioSimulatorView
+              user={user}
+              initialBalance={initialBalance}
+              baseMonthlyIncome={totalIncome > 0 ? totalIncome : user.profile.monthlyIncomeExpectation}
+              baseMonthlyExpense={totalExpense > 0 ? totalExpense : 3000}
+              country={country}
+              events={scenarioEvents}
+              onToggleEvent={handleToggleScenarioEvent}
+              onAddEvent={handleAddScenarioEvent}
+              onDeleteEvent={handleDeleteScenarioEvent}
+            />
+          </div>
         )}
 
         {activeTab === 'accounts' && (
-          <AccountsView
-            user={user}
-            country={country}
-            accounts={accounts}
-            onConnectAccount={handleConnectAccount}
-            onSyncAccount={handleSyncAccount}
-            onDeleteAccount={handleDeleteAccount}
-            onToggle2FA={handleToggle2FA}
-          />
+          <div className="reveal reveal-visible">
+            <AccountsView
+              user={user}
+              country={country}
+              accounts={accounts}
+              onConnectAccount={handleConnectAccount}
+              onSyncAccount={handleSyncAccount}
+              onDeleteAccount={handleDeleteAccount}
+              onToggle2FA={handleToggle2FA}
+            />
+          </div>
         )}
 
         {activeTab === 'copilot' && (
-          <CopilotChatView
-            user={user}
-            country={country}
-            accounts={accounts}
-            transactions={transactions}
-            budgetLimits={budgetLimits}
-            messages={chatMessages}
-            onSendMessage={handleSendMessage}
-            onNavigateTab={(tab) => setActiveTab(tab)}
-            isOnline={isOnline}
-          />
+          <div className="reveal reveal-visible">
+            <CopilotChatView
+              user={user}
+              country={country}
+              accounts={accounts}
+              transactions={transactions}
+              budgetLimits={budgetLimits}
+              messages={chatMessages}
+              onSendMessage={handleSendMessage}
+              onNavigateTab={(tab) => setActiveTab(tab)}
+              isOnline={isOnline}
+            />
+          </div>
         )}
       </main>
 
@@ -833,6 +906,51 @@ Todas as ferramentas do Prumo — incluindo registro de lançamentos, verificaç
           </div>
         </div>
       </footer>
+
+      {/* ─── Modais da Fase 1 ─── */}
+      <RecurrenceManagerModal
+        open={isRecurrenceOpen}
+        onClose={() => setIsRecurrenceOpen(false)}
+        rules={recurrenceRules}
+        accounts={accounts}
+        country={country}
+        onAddRule={handleAddRecurrenceRule}
+        onToggleRule={handleToggleRecurrenceRule}
+        onDeleteRule={handleDeleteRecurrenceRule}
+      />
+      <OfxImportModal
+        open={isOfxOpen}
+        onClose={() => setIsOfxOpen(false)}
+        accounts={accounts}
+        country={country}
+        onImport={(txs) => {
+          // Dedup contra o histórico: mesma data + valor + descrição já
+          // registrada = importação repetida do mesmo extrato (ignora).
+          const existingKeys = new Set(
+            transactions.map((t) => `${t.occurredAt}|${t.amount}|${t.description.toLowerCase()}`)
+          );
+          const created = txs
+            .filter((t) => !existingKeys.has(`${t.occurredAt}|${t.amount}|${t.description.toLowerCase()}`))
+            .map((t, i) => ({
+              ...t,
+              id: `txo_${Date.now()}_${i}`,
+              userId: user.id,
+              createdAt: new Date().toISOString(),
+            }));
+          if (created.length > 0) {
+            setTransactions((prev) => [...created, ...prev]);
+          }
+        }}
+      />
+      <MonthlyReportModal
+        open={isReportOpen}
+        onClose={() => setIsReportOpen(false)}
+        user={user}
+        country={country}
+        accounts={accounts}
+        transactions={transactions}
+        budgetLimits={budgetLimits}
+      />
 
       {/* Profile / Calibration Modal (montado condicionalmente para re-inicializar os campos a cada abertura) */}
       {isProfileOpen && (

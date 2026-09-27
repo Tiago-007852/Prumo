@@ -1,5 +1,19 @@
 import React, { useState } from 'react';
-import { Compass, Sparkles, Lock, Mail, User as UserIcon, Globe, WifiOff } from 'lucide-react';
+import { motion } from 'motion/react';
+import {
+  Compass,
+  Sparkles,
+  Lock,
+  Mail,
+  User as UserIcon,
+  Globe,
+  WifiOff,
+  ShieldCheck,
+  Repeat,
+  FileBarChart,
+} from 'lucide-react';
+import { PlumbLine } from './PlumbLine';
+import { AnimatedNumber } from './AnimatedNumber';
 
 interface LoginViewProps {
   onAuthSuccess: (user: { id: string; email: string; name: string; country: 'BR' | 'AO' }) => void;
@@ -8,6 +22,33 @@ interface LoginViewProps {
   onGuestMode: () => void;
   isOnline: boolean;
 }
+
+const FEATURES = [
+  {
+    icon: Sparkles,
+    color: 'var(--accent)',
+    title: 'Copiloto IA que fala a sua língua',
+    text: 'Respostas com base no seu retrato financeiro real — e agora também por voz: pergunte falando.',
+  },
+  {
+    icon: Repeat,
+    color: 'var(--positive)',
+    title: 'Recorrências e parcelas no automático',
+    text: 'Aluguel, salário e assinaturas lançam sozinhos. Compras parceladas aparecem mês a mês.',
+  },
+  {
+    icon: FileBarChart,
+    color: 'var(--warn)',
+    title: 'Extrato OFX e relatório em PDF',
+    text: 'Importe o extrato do seu banco em segundos e gere um relatório mensal pronto para guardar.',
+  },
+  {
+    icon: Globe,
+    color: 'var(--accent-bright)',
+    title: 'Brasil e Angola no mesmo app',
+    text: 'R$ e Kz com dados isolados por país — offline-first: funciona sem internet e sincroniza depois.',
+  },
+] as const;
 
 export const LoginView: React.FC<LoginViewProps> = ({ onAuthSuccess, onRegistered, onGuestMode, isOnline }) => {
   const [mode, setMode] = useState<'login' | 'register'>('login');
@@ -39,8 +80,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onAuthSuccess, onRegistere
       }
     } catch (err: any) {
       const msg = String(err?.message || '');
-      const networkError =
-        msg.includes('fetch') || msg.includes('network') || msg.includes('NetworkError');
+      const networkError = msg.includes('fetch') || msg.includes('network') || msg.includes('NetworkError');
       setError(
         networkError
           ? 'Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente em instantes — seus dados locais continuam salvos.'
@@ -53,107 +93,156 @@ export const LoginView: React.FC<LoginViewProps> = ({ onAuthSuccess, onRegistere
 
   return (
     <div className="min-h-screen flex flex-col lg:flex-row bg-[var(--bg)] text-[var(--text)]">
-      {/* Coluna esquerda — identidade do Prumo */}
+      {/* ── Coluna esquerda: identidade ── */}
       <div className="relative flex-1 flex flex-col justify-between p-8 sm:p-12 bg-[var(--surface-2)] border-b lg:border-b-0 lg:border-r border-[var(--line)] overflow-hidden">
-        {/* Linha do prumo decorativa */}
+        {/* Glow de fundo + prumo animado */}
         <div
           aria-hidden="true"
-          className="absolute inset-0 opacity-[0.35] pointer-events-none"
+          className="absolute inset-0 pointer-events-none"
           style={{
-            backgroundImage:
-              'repeating-linear-gradient(135deg, var(--line) 0 1px, transparent 1px 28px)',
+            background:
+              'radial-gradient(80% 60% at 30% 20%, var(--gold-glow) 0%, transparent 55%), radial-gradient(60% 50% at 80% 90%, var(--ink-glow) 0%, transparent 60%)',
           }}
         />
+        <PlumbLine height={300} country={country} className="absolute right-0 top-16 w-[46%] opacity-70 hidden md:block" />
 
-        <div className="relative flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl bg-[var(--accent)] flex items-center justify-center text-white shadow-sm">
+        <motion.div
+          className="relative flex items-center gap-3"
+          initial={{ opacity: 0, y: -12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <div
+            className="w-11 h-11 rounded-xl bg-[var(--accent)] flex items-center justify-center shadow-sm"
+            style={{ boxShadow: '0 0 24px var(--gold-glow)' }}
+          >
             <Compass className="w-6 h-6" />
           </div>
           <div>
             <div className="font-serif-display font-semibold text-3xl tracking-tight">Prumo</div>
-            <div className="text-xs text-[var(--text-dim)]">Copiloto Financeiro · BR & AO</div>
+            <div className="text-xs text-[var(--text-dim)]">Copiloto Financeiro · BR &amp; AO</div>
+          </div>
+        </motion.div>
+
+        <div className="relative max-w-lg space-y-6 py-10">
+          <motion.h1
+            className="font-serif-display text-4xl sm:text-5xl font-bold leading-[1.08] tracking-tight"
+            initial={{ opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}
+          >
+            Seu dinheiro no{' '}
+            <span className="text-[var(--accent)]">prumo</span>, de qualquer dispositivo.
+          </motion.h1>
+
+          <motion.p
+            className="text-sm sm:text-base text-[var(--text-dim)] leading-relaxed max-w-md"
+            initial={{ opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, delay: 0.16, ease: [0.22, 1, 0.36, 1] }}
+          >
+            Lançamentos, orçamentos, metas e conversas com o copiloto acompanham você entre
+            dispositivos — <strong className="text-[var(--text)]">sem perder o modo offline</strong>:
+            tudo funciona sem internet e sincroniza quando a conexão volta.
+          </motion.p>
+
+          {/* Números da casa (demo) com contador dourado */}
+          <motion.div
+            className="flex items-center gap-6 sm:gap-10"
+            initial={{ opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, delay: 0.24, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <div>
+              <AnimatedNumber value={24} country={country} className="font-serif-display text-2xl sm:text-3xl font-bold text-[var(--accent)]" />
+              <div className="text-[11px] uppercase tracking-wider font-semibold text-[var(--text-dim)] mt-0.5">
+                meses de projeção
+              </div>
+            </div>
+            <div className="w-px h-10 bg-[var(--line)]" />
+            <div>
+              <span className="font-serif-display text-2xl sm:text-3xl font-bold text-[var(--accent)]">2</span>
+              <div className="text-[11px] uppercase tracking-wider font-semibold text-[var(--text-dim)] mt-0.5">
+                países, um app
+              </div>
+            </div>
+            <div className="w-px h-10 bg-[var(--line)]" />
+            <div>
+              <span className="font-serif-display text-2xl sm:text-3xl font-bold text-[var(--accent)]">100%</span>
+              <div className="text-[11px] uppercase tracking-wider font-semibold text-[var(--text-dim)] mt-0.5">
+                offline-first
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Features */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-xl">
+            {FEATURES.map((f, i) => (
+              <motion.div
+                key={f.title}
+                className="rounded-xl border border-[var(--line)] bg-[var(--surface)]/70 backdrop-blur-sm p-3.5"
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.55, delay: 0.3 + i * 0.07, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <f.icon className="w-4 h-4" style={{ color: f.color }} />
+                  <span className="text-xs font-bold text-[var(--text)]">{f.title}</span>
+                </div>
+                <p className="text-[11px] leading-relaxed text-[var(--text-dim)]">{f.text}</p>
+              </motion.div>
+            ))}
           </div>
         </div>
 
-        <div className="relative max-w-md space-y-5 py-10">
-          <h1 className="font-serif-display text-3xl sm:text-4xl font-bold leading-tight">
-            Seu dinheiro no prumo, de qualquer dispositivo.
-          </h1>
-          <p className="text-sm sm:text-base text-[var(--text-dim)] leading-relaxed">
-            Crie sua conta para que lançamentos, orçamentos, metas e conversas com o copiloto
-            acompanhem você entre dispositivos — <strong className="text-[var(--text)]">sem
-            perder o modo offline</strong>: tudo continua funcionando sem internet e sincroniza
-            quando a conexão voltar.
-          </p>
-
-          <ul className="space-y-3 text-sm">
-            <li className="flex items-start gap-2.5">
-              <Sparkles className="w-4 h-4 text-[var(--accent)] mt-0.5 shrink-0" />
-              <span>Copiloto IA contextual com o seu retrato financeiro</span>
-            </li>
-            <li className="flex items-start gap-2.5">
-              <Lock className="w-4 h-4 text-[var(--positive)] mt-0.5 shrink-0" />
-              <span>Senhas protegidas com bcrypt e sessão em cookie seguro</span>
-            </li>
-            <li className="flex items-start gap-2.5">
-              <Globe className="w-4 h-4 text-[var(--warn)] mt-0.5 shrink-0" />
-              <span>Brasil (R$) e Angola (Kz) no mesmo app, com dados isolados</span>
-            </li>
-          </ul>
-        </div>
-
-        <p className="relative text-[11px] text-[var(--text-dim)]">
-          Ao continuar você concorda com o uso dos seus dados conforme a LGPD (n° 13.709/2018). Você
-          pode exportar ou eliminar sua conta e dados a qualquer momento nas configurações.
+        <p className="relative text-[11px] text-[var(--text-dim)] flex items-start gap-1.5">
+          <ShieldCheck className="w-3.5 h-3.5 text-[var(--positive)] shrink-0 mt-0.5" />
+          Ao continuar você concorda com o uso dos seus dados conforme a LGPD (n° 13.709/2018). Exporte
+          ou elimine sua conta e dados a qualquer momento.
         </p>
       </div>
 
-      {/* Coluna direita — formulário */}
-      <div className="flex-1 flex items-center justify-center p-6 sm:p-12">
-        <div className="w-full max-w-md">
+      {/* ── Coluna direita: formulário ── */}
+      <div className="relative flex-1 flex items-center justify-center p-6 sm:p-12">
+        <motion.div
+          className="w-full max-w-md"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
+        >
           {!isOnline && (
             <div className="mb-5 p-3.5 rounded-xl border border-[var(--warn)]/30 bg-[var(--warn-soft)] text-xs text-[var(--text)] flex items-center gap-2.5">
               <WifiOff className="w-4 h-4 text-[var(--warn)] shrink-0" />
-              <span>
-                Você está offline. Entrar exige conexão — seus dados locais continuam salvos no
-                dispositivo.
-              </span>
+              <span>Você está offline. Entrar exige conexão — seus dados locais continuam salvos no dispositivo.</span>
             </div>
           )}
 
           {/* Abas */}
           <div className="grid grid-cols-2 p-1 rounded-xl border border-[var(--line)] bg-[var(--surface-2)] mb-6">
-            <button
-              type="button"
-              onClick={() => {
-                setMode('login');
-                setError(null);
-              }}
-              className={`py-2 text-sm font-semibold rounded-lg transition-all cursor-pointer ${
-                mode === 'login'
-                  ? 'bg-[var(--surface)] text-[var(--text)] shadow-xs'
-                  : 'text-[var(--text-dim)] hover:text-[var(--text)]'
-              }`}
-            >
-              Entrar
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMode('register');
-                setError(null);
-              }}
-              className={`py-2 text-sm font-semibold rounded-lg transition-all cursor-pointer ${
-                mode === 'register'
-                  ? 'bg-[var(--surface)] text-[var(--text)] shadow-xs'
-                  : 'text-[var(--text-dim)] hover:text-[var(--text)]'
-              }`}
-            >
-              Criar conta
-            </button>
+            {(['login', 'register'] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => {
+                  setMode(m);
+                  setError(null);
+                }}
+                className={`py-2 text-sm font-semibold rounded-lg transition-all cursor-pointer ${
+                  mode === m
+                    ? 'bg-[var(--surface)] text-[var(--text)] shadow-xs'
+                    : 'text-[var(--text-dim)] hover:text-[var(--text)]'
+                }`}
+              >
+                {m === 'login' ? 'Entrar' : 'Criar conta'}
+              </button>
+            ))}
           </div>
 
-          <form onSubmit={handleSubmit} className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-6 sm:p-7 shadow-xs space-y-4">
+          <form
+            onSubmit={handleSubmit}
+            className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-6 sm:p-7 shadow-xs space-y-4"
+            style={{ boxShadow: '0 10px 40px -18px var(--ink-glow)' }}
+          >
             <h2 className="font-serif-display text-xl font-bold">
               {mode === 'login' ? 'Bem-vindo de volta' : 'Comece agora'}
             </h2>
@@ -221,7 +310,10 @@ export const LoginView: React.FC<LoginViewProps> = ({ onAuthSuccess, onRegistere
             )}
 
             {error && (
-              <div role="alert" className="p-3 rounded-lg border border-[var(--danger)]/30 bg-[var(--danger-soft)] text-xs font-medium text-[var(--danger)] flex items-start gap-2">
+              <div
+                role="alert"
+                className="p-3 rounded-lg border border-[var(--danger)]/30 bg-[var(--danger-soft)] text-xs font-medium text-[var(--danger)] flex items-start gap-2"
+              >
                 <span>{error}</span>
               </div>
             )}
@@ -229,7 +321,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onAuthSuccess, onRegistere
             <button
               type="submit"
               disabled={busy || (!isOnline && typeof navigator !== 'undefined' && !navigator.onLine)}
-              className="w-full py-2.5 rounded-lg bg-[var(--accent)] text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition-all shadow-xs cursor-pointer"
+              className="w-full py-2.5 rounded-lg bg-[var(--accent)] text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition-all shadow-xs cursor-pointer"
+              style={{ boxShadow: '0 4px 20px -6px var(--gold-glow)' }}
             >
               {busy ? 'Aguarde...' : mode === 'login' ? 'Entrar no Prumo' : 'Criar minha conta'}
             </button>
@@ -269,7 +362,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onAuthSuccess, onRegistere
           <p className="mt-5 text-center text-[11px] text-[var(--text-dim)]">
             Prumo © {new Date().getFullYear()} · Dados protegidos por sessão segura · LGPD
           </p>
-        </div>
+        </motion.div>
       </div>
     </div>
   );

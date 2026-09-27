@@ -18,6 +18,7 @@ import {
   Goal,
   ChatMessage,
   StandardCategory,
+  RecurrenceRule,
 } from '../types';
 import {
   INITIAL_USER_BR,
@@ -42,6 +43,8 @@ export interface CountryDataState {
   scenarioEvents: ScenarioEvent[];
   chatMessages: ChatMessage[];
   goals: Goal[];
+  /** Regras de lançamentos recorrentes (Fase 1). */
+  recurrenceRules?: RecurrenceRule[];
   offlineQueue?: Transaction[];
   lastSavedAt: string;
 }

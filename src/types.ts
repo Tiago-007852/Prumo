@@ -61,7 +61,34 @@ export interface Account {
 }
 
 export type TransactionType = 'income' | 'expense';
-export type TransactionSource = 'auto_import' | 'manual' | 'ai_categorized';
+export type TransactionSource = 'auto_import' | 'manual' | 'ai_categorized' | 'recurring' | 'ofx_import';
+
+/** Frequência de uma regra de lançamento recorrente. */
+export type RecurrenceFrequency = 'weekly' | 'monthly' | 'yearly';
+
+/**
+ * Regra de lançamento recorrente (aluguel, salário, assinaturas). O motor
+ * materializa as instâncias como transações reais de forma idempotente
+ * (marcador `rec:<id>:<YYYY-MM>` nas tags impede duplicatas).
+ */
+export interface RecurrenceRule {
+  id: string;
+  userId: string;
+  description: string;
+  amount: number;
+  type: TransactionType;
+  category: string;
+  frequency: RecurrenceFrequency;
+  /** Dia do mês (1-31) para 'monthly'; ignorado nos demais. */
+  dayOfMonth?: number;
+  /** Primeira ocorrência (YYYY-MM-DD). */
+  startDate: string;
+  /** Data final opcional (YYYY-MM-DD) — após ela a regra para de gerar. */
+  endDate?: string;
+  accountId?: string | null;
+  active: boolean;
+  createdAt: string;
+}
 
 export type StandardCategory =
   | 'Alimentação'
@@ -90,6 +117,8 @@ export interface Transaction {
   createdAt: string;
   merchant?: string;
   tags?: string[];
+  /** Parcelamento de cartão: posição atual e total (ex: 2 de 12). */
+  installments?: { current: number; total: number; groupId: string } | null;
 }
 
 export type BudgetStatus = 'within' | 'warning' | 'exceeded';

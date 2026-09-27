@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Transaction, Account, Country, StandardCategory } from '../types';
+import { Transaction, Account, Country, StandardCategory, RecurrenceRule } from '../types';
 import { formatCurrency } from '../services/businessRules';
 import { classifyOffline } from '../services/storageService';
 import { generateTransactionsCSV, downloadCSV } from '../services/exportService';
@@ -19,6 +19,9 @@ import {
   HardDrive,
   Download,
   AlertCircle,
+  Upload,
+  Repeat,
+  FileBarChart,
 } from 'lucide-react';
 
 interface TransactionsViewProps {
@@ -28,6 +31,10 @@ interface TransactionsViewProps {
   onAddTransaction: (tx: Omit<Transaction, 'id' | 'createdAt'>) => void;
   onDeleteTransaction: (id: string) => void;
   isOnline?: boolean;
+  recurringRules?: RecurrenceRule[];
+  onOpenRecurrences?: () => void;
+  onOpenOfxImport?: () => void;
+  onOpenReport?: () => void;
 }
 
 const CATEGORIES: StandardCategory[] = [
@@ -52,6 +59,10 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
   onAddTransaction,
   onDeleteTransaction,
   isOnline = true,
+  recurringRules = [],
+  onOpenRecurrences,
+  onOpenOfxImport,
+  onOpenReport,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedType, setSelectedType] = useState<'all' | 'income' | 'expense'>('all');
@@ -66,10 +77,14 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
   const [formDate, setFormDate] = useState(new Date().toISOString().split('T')[0]);
   const [formAccountId, setFormAccountId] = useState(accounts[0]?.id || '');
   const [formMerchant, setFormMerchant] = useState('');
+  const [formInstallments, setFormInstallments] = useState('1');
   const [isClassifying, setIsClassifying] = useState(false);
   const [aiTagMessage, setAiTagMessage] = useState<string | null>(null);
   const [exportNotice, setExportNotice] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+
+  // Valor numérico seguro do formulário (para preview de parcelas)
+  const parsedAmountSafe = parseFloat(formAmount.replace(',', '.')) || 0;
 
   // Exportação CSV do histórico financeiro
   const handleExportCSV = () => {
@@ -141,22 +156,48 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     }
     setFormError(null);
 
-    onAddTransaction({
-      userId: 'current-user',
-      accountId: formAccountId || undefined,
-      description: formDesc,
-      amount: parsedAmount,
-      type: formType,
-      category: formCategory,
-      source: aiTagMessage ? 'ai_categorized' : 'manual',
-      occurredAt: formDate,
-      merchant: formMerchant || undefined,
-    });
+    const installmentsN = formType === 'expense' ? Math.min(Math.max(parseInt(formInstallments, 10) || 1, 1), 48) : 1;
+    const installmentGroupId = installmentsN > 1 ? `inst_${Date.now()}` : undefined;
+    const installmentAmount = installmentsN > 1 ? Math.round(parsedAmount * 100 / installmentsN) / 100 : parsedAmount;
+
+    // Parcelado: gera N lançamentos (um por mês, só o primeiro pode estar no
+    // passado — os demais entram com status futuro, exibidos na lista).
+    if (installmentsN > 1) {
+      const base = new Date(`${formDate}T00:00:00`);
+      for (let i = 0; i < installmentsN; i++) {
+        const d = new Date(base.getFullYear(), base.getMonth() + i, base.getDate());
+        onAddTransaction({
+          userId: 'current-user',
+          accountId: formAccountId || undefined,
+          description: formDesc,
+          amount: installmentAmount,
+          type: formType,
+          category: formCategory,
+          source: aiTagMessage ? 'ai_categorized' : 'manual',
+          occurredAt: d.toISOString().split('T')[0],
+          merchant: formMerchant || undefined,
+          installments: { current: i + 1, total: installmentsN, groupId: installmentGroupId! },
+        });
+      }
+    } else {
+      onAddTransaction({
+        userId: 'current-user',
+        accountId: formAccountId || undefined,
+        description: formDesc,
+        amount: parsedAmount,
+        type: formType,
+        category: formCategory,
+        source: aiTagMessage ? 'ai_categorized' : 'manual',
+        occurredAt: formDate,
+        merchant: formMerchant || undefined,
+      });
+    }
 
     // Reset form
     setFormDesc('');
     setFormAmount('');
     setFormMerchant('');
+    setFormInstallments('1');
     setAiTagMessage(null);
     setFormError(null);
     setIsFormOpen(false);
@@ -207,6 +248,50 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
               {filteredTransactions.length}
             </span>
           </button>
+
+          {onOpenReport && (
+            <button
+              id="btn-monthly-report"
+              type="button"
+              onClick={onOpenReport}
+              title="Relatório mensal do mês corrente — imprima ou salve como PDF"
+              className="flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[var(--text)] text-xs sm:text-sm font-medium hover:bg-[var(--surface-2)] transition-all shadow-xs cursor-pointer"
+            >
+              <FileBarChart className="w-4 h-4 text-[var(--accent)]" />
+              <span className="hidden md:inline">Relatório</span>
+            </button>
+          )}
+
+          {onOpenRecurrences && (
+            <button
+              id="btn-recurrences"
+              type="button"
+              onClick={onOpenRecurrences}
+              title="Aluguel, salário, assinaturas: lançamentos que se repetem sozinhos"
+              className="relative flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[var(--text)] text-xs sm:text-sm font-medium hover:bg-[var(--surface-2)] transition-all shadow-xs cursor-pointer"
+            >
+              <Repeat className="w-4 h-4 text-[var(--accent)]" />
+              <span className="hidden md:inline">Recorrentes</span>
+              {recurringRules.length > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[var(--accent)] text-white text-[10px] font-bold flex items-center justify-center">
+                  {recurringRules.length}
+                </span>
+              )}
+            </button>
+          )}
+
+          {onOpenOfxImport && (
+            <button
+              id="btn-ofx-import"
+              type="button"
+              onClick={onOpenOfxImport}
+              title="Importar extrato OFX do seu banco (Itaú, Nubank, BB, Inter...)"
+              className="flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[var(--text)] text-xs sm:text-sm font-medium hover:bg-[var(--surface-2)] transition-all shadow-xs cursor-pointer"
+            >
+              <Upload className="w-4 h-4 text-[var(--accent)]" />
+              <span className="hidden lg:inline">Importar OFX</span>
+            </button>
+          )}
 
           <button
             id="btn-toggle-add-tx"
@@ -416,6 +501,26 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                 className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-[var(--line)] bg-[var(--surface-2)] text-[var(--text)] focus:outline-none focus:border-[var(--accent)]"
               />
             </div>
+
+            {/* Parcelas (apenas despesa) */}
+            {formType === 'expense' && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-[var(--text-dim)]">Parcelas</label>
+                <select
+                  id="select-tx-installments"
+                  value={formInstallments}
+                  onChange={(e) => setFormInstallments(e.target.value)}
+                  className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-[var(--line)] bg-[var(--surface-2)] text-[var(--text)] focus:outline-none focus:border-[var(--accent)]"
+                >
+                  <option value="1">À vista</option>
+                  {[2, 3, 4, 5, 6, 8, 10, 12, 18, 24].map((n) => (
+                    <option key={n} value={String(n)}>
+                      {n}x de {(parsedAmountSafe / n).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           {formError && (
@@ -556,7 +661,14 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                         {t.occurredAt}
                       </td>
                       <td className="py-3 px-4">
-                        <div className="font-semibold text-[var(--text)]">{t.description}</div>
+                        <div className="font-semibold text-[var(--text)]">
+                          {t.description}
+                          {t.installments && (
+                            <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-[var(--accent-soft)] text-[var(--accent)] font-semibold align-middle">
+                              {t.installments.current}/{t.installments.total}
+                            </span>
+                          )}
+                        </div>
                         <div className="flex items-center gap-2 mt-0.5 text-[11px] text-[var(--text-dim)]">
                           {t.merchant && <span>{t.merchant}</span>}
                           <span>•</span>
@@ -566,6 +678,14 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                             ) : t.source === 'ai_categorized' ? (
                               <span className="text-[var(--accent)] font-medium flex items-center gap-0.5">
                                 <Sparkles className="w-2.5 h-2.5" /> IA
+                              </span>
+                            ) : t.source === 'recurring' ? (
+                              <span className="text-[var(--accent)] font-medium flex items-center gap-0.5">
+                                <Repeat className="w-2.5 h-2.5" /> Recorrente
+                              </span>
+                            ) : t.source === 'ofx_import' ? (
+                              <span className="text-[var(--accent)] font-medium flex items-center gap-0.5">
+                                <Upload className="w-2.5 h-2.5" /> OFX
                               </span>
                             ) : (
                               <span>Manual</span>

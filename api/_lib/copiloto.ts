@@ -59,6 +59,10 @@ export interface CopilotoResult {
   reply: string;
   source: CopilotoSource;
   provider?: string;
+  /** Modelo que respondeu (quando a resposta veio de IA de verdade). */
+  model?: string;
+  /** Diagnóstico curto quando caiu no fallback (observabilidade no cliente). */
+  fallbackReason?: string;
 }
 
 /**
@@ -113,7 +117,12 @@ ${portrait}`;
       if (resolveCompatProvider()) {
         const compat = await chatComplete(fullSystemInstruction, contents);
         if (compat) {
-          return { reply: compat.text, source: 'compat', provider: compat.provider };
+          return {
+            reply: compat.text,
+            source: 'compat',
+            provider: compat.provider,
+            model: compat.model,
+          };
         }
         // Provedor compat falhou: cai para o Gemini SDK se disponível,
         // e depois para o fallback heurístico.
@@ -141,5 +150,11 @@ ${portrait}`;
     }
   }
 
-  return { reply: buildFallbackReply(req), source: 'heuristic_fallback' };
+  // Nenhum provedor disponível OU todas as chamadas falharam: o cliente recebe
+  // `source: 'heuristic_fallback'` + `fallbackReason` para exibir um aviso
+  // honesto em vez de fingir que a IA respondeu.
+  const reason = resolveCompatProvider()
+    ? 'Não foi possível alcançar o provedor de IA neste momento.'
+    : 'Nenhuma chave de IA está configurada neste ambiente.';
+  return { reply: buildFallbackReply(req), source: 'heuristic_fallback', fallbackReason: reason };
 }

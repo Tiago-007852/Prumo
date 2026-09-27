@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { TabKey } from './Navigation';
 import { DailySpendingChart } from './DailySpendingChart';
+import { AnimatedNumber } from './AnimatedNumber';
 
 interface DashboardViewProps {
   user: User;
@@ -242,7 +243,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <Wallet className="w-4 h-4 text-[var(--accent)]" />
           </div>
           <div className="font-serif-display text-2xl sm:text-3xl font-bold text-[var(--text)] tracking-tight">
-            {formatCurrency(aggregatedBalance, country)}
+            <AnimatedNumber value={aggregatedBalance} country={country} />
           </div>
           <div className="mt-2 flex items-center justify-between text-xs text-[var(--text-dim)]">
             <span>{accounts.length} contas ({accounts.filter((a) => a.provider === 'open_finance').length} Open Finance)</span>
@@ -266,7 +267,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <TrendingUp className="w-4 h-4 text-[var(--positive)]" />
           </div>
           <div className="font-serif-display text-2xl sm:text-3xl font-bold text-[var(--positive)] tracking-tight">
-            {formatCurrency(totalIncome, country)}
+            <AnimatedNumber value={totalIncome} country={country} />
           </div>
           <div className="mt-2 text-xs text-[var(--text-dim)]">
             Expectativa mensal: {formatCurrency(user.profile.monthlyIncomeExpectation, country)}
@@ -283,7 +284,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <TrendingDown className="w-4 h-4 text-[var(--danger)]" />
           </div>
           <div className="font-serif-display text-2xl sm:text-3xl font-bold text-[var(--text)] tracking-tight">
-            {formatCurrency(totalExpense, country)}
+            <AnimatedNumber value={totalExpense} country={country} />
           </div>
           <div className="mt-2 text-xs text-[var(--text-dim)]">
             Saldo líquido: <strong className={netSavings >= 0 ? 'text-[var(--positive)]' : 'text-[var(--danger)]'}>{formatCurrency(netSavings, country)}</strong>

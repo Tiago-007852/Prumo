@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 import { categorizeDescription } from './api/_lib/categorize';
 import { generateCopilotoReply } from './api/_lib/copiloto';
 import { loadSystemPrompt } from './api/_lib/systemPrompt';
-import { resolveAiProviderName } from './api/_lib/llm';
+import { resolveAiProviderName, resolvePreferredModel } from './api/_lib/llm';
 import {
   registerUser,
   loginUser,
@@ -171,6 +171,7 @@ app.get('/api/health', (req, res) => {
     timestamp: new Date().toISOString(),
     geminiConfigured: !!process.env.GEMINI_API_KEY,
     aiProvider: resolveAiProviderName() || (!!process.env.GEMINI_API_KEY ? 'gemini' : null),
+    aiModel: resolvePreferredModel(),
     databaseConfigured: !!process.env.DATABASE_URL,
   });
 });
