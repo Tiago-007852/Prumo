@@ -74,14 +74,17 @@ export async function createSpace(name: string): Promise<SpacePayload> {
 
 /** Entra num espaço pelo código de convite. */
 export async function joinSpaceByCode(code: string): Promise<SpacePayload> {
-  const data = await request<{ space: unknown; summary?: SpaceSummaryMember[] }>('/api/space/join', {
+  const data = await request<{ space: unknown; summary?: SpaceSummaryMember[] }>('/api/space', {
     method: 'POST',
-    body: JSON.stringify({ code }),
+    body: JSON.stringify({ action: 'join', code }),
   });
   return { space: normalizeSpace(data.space), summary: data.summary || [] };
 }
 
 /** Sai do espaço (membro) ou encerra (dono). */
 export async function leaveSpace(): Promise<void> {
-  await request('/api/space/leave', { method: 'POST' });
+  await request('/api/space', {
+    method: 'POST',
+    body: JSON.stringify({ action: 'leave' }),
+  });
 }

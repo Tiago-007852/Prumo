@@ -16,7 +16,7 @@ export interface SyncResult {
 /** Envia o estado local consolidado para o servidor. */
 export async function pushState(state: unknown): Promise<SyncResult> {
   try {
-    const res = await fetch('/api/sync/push', {
+    const res = await fetch('/api/sync', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(state),
@@ -39,7 +39,7 @@ export async function pushState(state: unknown): Promise<SyncResult> {
 /** Busca o estado consolidado do servidor (novos dispositivos / restauro). */
 export async function pullState(): Promise<{ state: unknown; updatedAt: string | null } | null> {
   try {
-    const res = await fetch('/api/sync/pull', { credentials: 'same-origin' });
+    const res = await fetch('/api/sync', { credentials: 'same-origin' });
     if (!res.ok) return null;
     const data = await res.json();
     return { state: data?.state ?? null, updatedAt: data?.updatedAt ?? null };
