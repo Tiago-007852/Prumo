@@ -16,6 +16,8 @@ import {
   UserProfile,
   FinancialSnapshot,
   RecurrenceRule,
+  CategoryAllocation,
+  Notification,
 } from './types';
 import {
   calculateAggregatedBalance,
@@ -25,9 +27,17 @@ import {
 } from './services/businessRules';
 import { getAccountAggregator } from './services/accountAggregator';
 import { materializeRecurringTransactions } from './services/recurrenceEngine';
+import {
+  deriveNotifications,
+  countUnread,
+  markAllRead,
+  reconcileNotifications,
+} from './services/notificationService';
 
 // Subcomponents
 import { Header } from './components/Header';
+import { NotificationCenter } from './components/NotificationCenter';
+import { SharedSpaceCard } from './components/SharedSpaceCard';
 import { Navigation, TabKey } from './components/Navigation';
 import { DashboardView } from './components/DashboardView';
 import { TransactionsView } from './components/TransactionsView';
@@ -63,6 +73,12 @@ import {
 } from './services/authService';
 import { pushState, pullState, type SyncStatus } from './services/syncService';
 import { Info, Lock, Compass } from 'lucide-react';
+
+/** Chave 'YYYY-MM' do mês corrente (fuso local) — alocações por categoria. */
+function getMonthKeyLocal(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
 
 /**
  * Mensagem de boas-vindas do copiloto: sempre com os dados REAIS do usuário
@@ -152,6 +168,12 @@ export default function App() {
   const [recurrenceRules, setRecurrenceRules] = useState<RecurrenceRule[]>(
     () => loadCountryData(getStoredActiveCountry()).recurrenceRules || []
   );
+  const [categoryAllocations, setCategoryAllocations] = useState<CategoryAllocation[]>(
+    () => loadCountryData(getStoredActiveCountry()).categoryAllocations || []
+  );
+  const [notifications, setNotifications] = useState<Notification[]>(
+    () => loadCountryData(getStoredActiveCountry()).notifications || []
+  );
 
   // Modais da Fase 1: recorrências, importação OFX e relatório mensal
   const [isRecurrenceOpen, setIsRecurrenceOpen] = useState(false);
@@ -184,6 +206,8 @@ export default function App() {
           setChatMessages(fresh.chatMessages);
           setGoals(fresh.goals || []);
           setRecurrenceRules(fresh.recurrenceRules || []);
+          setCategoryAllocations(fresh.categoryAllocations || []);
+          setNotifications(fresh.notifications || []);
           setCountry(authUser.country);
           setStoredActiveCountry(authUser.country);
         }
@@ -198,6 +222,8 @@ export default function App() {
       setChatMessages(demo.chatMessages);
       setGoals(demo.goals || []);
       setRecurrenceRules(demo.recurrenceRules || []);
+      setCategoryAllocations(demo.categoryAllocations || []);
+      setNotifications(demo.notifications || []);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authStatus, seedAppliedFor]);
@@ -213,9 +239,11 @@ export default function App() {
       chatMessages,
       goals,
       recurrenceRules,
+      categoryAllocations,
+      notifications,
       lastSavedAt: new Date().toISOString(),
     }, storageOwner.userId);
-  }, [country, user, accounts, transactions, budgetLimits, scenarioEvents, chatMessages, goals, recurrenceRules, storageOwner.userId]);
+  }, [country, user, accounts, transactions, budgetLimits, scenarioEvents, chatMessages, goals, recurrenceRules, categoryAllocations, notifications, storageOwner.userId]);
 
   // Aplica estado vindo do servidor (restauro em novo dispositivo/login)
   const applyServerState = (serverState: unknown, targetCountry: Country) => {
@@ -235,6 +263,8 @@ export default function App() {
     setChatMessages(arr<ChatMessage>(s.chatMessages));
     setGoals(arr<Goal>(s.goals));
     setRecurrenceRules(arr<RecurrenceRule>(s.recurrenceRules));
+    setCategoryAllocations(arr<CategoryAllocation>(s.categoryAllocations));
+    setNotifications(arr<Notification>(s.notifications));
   };
 
   // Restaura sessão existente (cookie httpOnly) ao carregar o app.
@@ -279,6 +309,8 @@ export default function App() {
       setChatMessages(empty.chatMessages);
       setGoals(empty.goals);
       setRecurrenceRules([]);
+      setCategoryAllocations([]);
+      setNotifications([]);
       setCountry(account.country);
       setStoredActiveCountry(account.country);
       setPendingOnboarding(true);
@@ -357,12 +389,14 @@ export default function App() {
         chatMessages,
         goals,
         recurrenceRules,
+        categoryAllocations,
+        notifications,
         lastSavedAt: new Date().toISOString(),
       });
       setSyncStatus(result.ok ? 'synced' : 'error');
     }, 2500);
     return () => clearTimeout(timer);
-  }, [authStatus, isOnline, user, accounts, transactions, budgetLimits, scenarioEvents, chatMessages, goals, recurrenceRules]);
+  }, [authStatus, isOnline, user, accounts, transactions, budgetLimits, scenarioEvents, chatMessages, goals, recurrenceRules, categoryAllocations, notifications]);
 
   const handleLogout = async () => {
     try {
@@ -408,6 +442,8 @@ export default function App() {
       chatMessages,
       goals,
       recurrenceRules,
+      categoryAllocations,
+      notifications,
       lastSavedAt: new Date().toISOString(),
     }, storageOwner.userId);
 
@@ -424,6 +460,8 @@ export default function App() {
     setChatMessages(nextData.chatMessages);
     setGoals(nextData.goals || []);
     setRecurrenceRules(nextData.recurrenceRules || []);
+    setCategoryAllocations(nextData.categoryAllocations || []);
+    setNotifications(nextData.notifications || []);
   };
 
   // Reset dados: conta real zera tudo; demo restaura os dados fictícios
@@ -437,6 +475,8 @@ export default function App() {
     setChatMessages(defaultData.chatMessages);
     setGoals(defaultData.goals || []);
     setRecurrenceRules(defaultData.recurrenceRules || []);
+    setCategoryAllocations(defaultData.categoryAllocations || []);
+    setNotifications(defaultData.notifications || []);
   };
 
   // Profile Save
@@ -548,6 +588,67 @@ export default function App() {
       id: `goal_${Date.now()}`,
     };
     setGoals((prev) => [...prev, created]);
+  };
+
+  // ─── Alocações por categoria — método envelope/YNAB (Fase 3) ───
+  const handleAllocateToCategory = (category: string, amount: number) => {
+    const monthKey = getMonthKeyLocal();
+    setCategoryAllocations((prev) => {
+      const idx = prev.findIndex((a) => a.category === category && a.monthKey === monthKey);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = { ...next[idx], amount: Math.max(0, next[idx].amount + amount) };
+        return next;
+      }
+      return [
+        ...prev,
+        {
+          id: `alloc_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          userId: user.id,
+          category,
+          monthKey,
+          amount: Math.max(0, amount),
+          createdAt: new Date().toISOString(),
+        },
+      ];
+    });
+  };
+
+  const handleClearCategoryAllocation = (category: string) => {
+    const monthKey = getMonthKeyLocal();
+    setCategoryAllocations((prev) =>
+      prev.filter((a) => !(a.category === category && a.monthKey === monthKey))
+    );
+  };
+
+  const handleAutoAllocateAll = (plan: Array<{ category: string; amount: number }>) => {
+    const monthKey = getMonthKeyLocal();
+    setCategoryAllocations((prev) => {
+      const next = [...prev];
+      for (const p of plan) {
+        const idx = next.findIndex((a) => a.category === p.category && a.monthKey === monthKey);
+        if (idx >= 0) next[idx] = { ...next[idx], amount: p.amount };
+        else
+          next.push({
+            id: `alloc_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+            userId: user.id,
+            category: p.category,
+            monthKey,
+            amount: p.amount,
+            createdAt: new Date().toISOString(),
+          });
+      }
+      return next;
+    });
+  };
+
+  // ─── Centro de notificações (Fase 3) ───
+  const handleMarkAllNotificationsRead = () => {
+    setNotifications((prev) => markAllRead(prev));
+  };
+
+  const handleNotificationNavigate = (tab: NonNullable<Notification['actionTab']>) => {
+    setActiveTab(tab);
   };
 
   // Eventos de Cenário
@@ -707,6 +808,49 @@ Todas as ferramentas do Prumo — incluindo registro de lançamentos, verificaç
     [user.profile, accounts, transactions, budgetLimits]
   );
 
+  // ─── Notificações derivadas (Fase 3): dedup + persistência de leitura ───
+  const derivedNotifs = useMemo(
+    () =>
+      deriveNotifications({
+        userId: user.id,
+        country,
+        alerts: predictiveAlerts,
+        recurrenceRules,
+        transactions,
+        goals,
+        primaryGoal: user.profile.primaryGoal
+          ? {
+              label: user.profile.primaryGoal,
+              targetValue: user.profile.goalTargetValue,
+              savedValue: user.profile.goalSavedValue,
+              deadline: user.profile.goalDeadline,
+            }
+          : undefined,
+        monthlySavings: totalIncome - totalExpense,
+        persisted: notifications,
+      }),
+    [user.id, user.profile, country, predictiveAlerts, recurrenceRules, transactions, goals, totalIncome, totalExpense, notifications]
+  );
+
+  // Concilia com o estado persistido (mantém lidas, descarta condições resolvidas)
+  useEffect(() => {
+    setNotifications((prev) => {
+      const next = reconcileNotifications(derivedNotifs.notifications, derivedNotifs.activeIds, prev);
+      // Evita loop de setState: só atualiza se algo mudou de fato
+      if (
+        next.length === prev.length &&
+        next.every((n, i) => n.id === prev[i]?.id && n.readAt === prev[i]?.readAt)
+      ) {
+        return prev;
+      }
+      return next;
+    });
+    // derivedNotifs muda a cada render de dados; notifications muda com este efeito
+    // (protegido contra loop pela comparação acima).
+  }, [derivedNotifs]);
+
+  const unreadNotifications = useMemo(() => countUnread(notifications), [notifications]);
+
   // ─── Gate de autenticação ───
   if (authStatus === 'checking') {
     return (
@@ -764,7 +908,13 @@ Todas as ferramentas do Prumo — incluindo registro de lançamentos, verificaç
         onResetData={handleResetData}
         isOnline={isOnline}
         syncStatus={syncStatus}
-      />
+      >
+        <NotificationCenter
+          notifications={notifications}
+          onMarkAllRead={handleMarkAllNotificationsRead}
+          onNavigate={handleNotificationNavigate}
+        />
+      </Header>
 
       {/* Main Tab Navigation */}
       <Navigation
@@ -816,10 +966,14 @@ Todas as ferramentas do Prumo — incluindo registro de lançamentos, verificaç
               transactions={transactions}
               country={country}
               goals={goals}
+              categoryAllocations={categoryAllocations}
               onUpdateBudgetLimit={handleUpdateBudgetLimit}
               onAddBudgetLimit={handleAddBudgetLimit}
               onAddSavedAmountToPrimaryGoal={handleAddSavedAmountToPrimaryGoal}
               onAddGoal={handleAddGoal}
+              onAllocateToCategory={handleAllocateToCategory}
+              onClearCategoryAllocation={handleClearCategoryAllocation}
+              onAutoAllocateAll={handleAutoAllocateAll}
             />
           </div>
         )}
@@ -850,7 +1004,31 @@ Todas as ferramentas do Prumo — incluindo registro de lançamentos, verificaç
               onSyncAccount={handleSyncAccount}
               onDeleteAccount={handleDeleteAccount}
               onToggle2FA={handleToggle2FA}
-            />
+            >
+              <SharedSpaceCard
+                user={user}
+                country={country}
+                isDemo={isDemoMode}
+                onSpaceChanged={(name) => {
+                  if (!name) return;
+                  setNotifications((prev) => [
+                    ...prev.filter((n) => !n.id.startsWith('ntf_shared_space_')),
+                    {
+                      id: `ntf_shared_space_${Date.now()}`,
+                      userId: user.id,
+                      kind: 'shared_space' as const,
+                      title: `Você entrou no espaço "${name}"`,
+                      message:
+                        'Os membros aparecem na aba Contas, com resumo de saldo e gasto do mês.',
+                      severity: 'info' as const,
+                      triggeredAt: new Date().toISOString(),
+                      readAt: null,
+                      actionTab: 'accounts' as const,
+                    },
+                  ]);
+                }}
+              />
+            </AccountsView>
           </div>
         )}
 

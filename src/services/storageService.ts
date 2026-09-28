@@ -19,6 +19,9 @@ import {
   ChatMessage,
   StandardCategory,
   RecurrenceRule,
+  CategoryAllocation,
+  Notification,
+  SharedSpace,
 } from '../types';
 import {
   INITIAL_USER_BR,
@@ -45,6 +48,12 @@ export interface CountryDataState {
   goals: Goal[];
   /** Regras de lançamentos recorrentes (Fase 1). */
   recurrenceRules?: RecurrenceRule[];
+  /** Atribuições mensais por categoria — método envelope/YNAB (Fase 3). */
+  categoryAllocations?: CategoryAllocation[];
+  /** Notificações/lembretes in-app com estado de leitura (Fase 3). */
+  notifications?: Notification[];
+  /** Espaço compartilhado (casal/família) do qual o usuário participa (Fase 3). */
+  sharedSpace?: SharedSpace | null;
   offlineQueue?: Transaction[];
   lastSavedAt: string;
 }
@@ -95,6 +104,9 @@ export function getEmptyCountryState(user: User): CountryDataState {
     scenarioEvents: [],
     chatMessages: [],
     goals: [],
+    categoryAllocations: [],
+    notifications: [],
+    sharedSpace: null,
     offlineQueue: [],
     lastSavedAt: new Date().toISOString(),
   };
@@ -111,6 +123,9 @@ export function getDefaultCountryState(country: Country): CountryDataState {
       scenarioEvents: INITIAL_SCENARIO_EVENTS_BR,
       chatMessages: INITIAL_CHAT_MESSAGES_BR,
       goals: [],
+      categoryAllocations: [],
+      notifications: [],
+      sharedSpace: null,
       offlineQueue: [],
       lastSavedAt: new Date().toISOString(),
     };
@@ -123,6 +138,9 @@ export function getDefaultCountryState(country: Country): CountryDataState {
       scenarioEvents: INITIAL_SCENARIO_EVENTS_AO,
       chatMessages: INITIAL_CHAT_MESSAGES_AO,
       goals: [],
+      categoryAllocations: [],
+      notifications: [],
+      sharedSpace: null,
       offlineQueue: [],
       lastSavedAt: new Date().toISOString(),
     };

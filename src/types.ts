@@ -147,6 +147,86 @@ export interface Goal {
   savedValue: number;
   targetDate: string; // YYYY-MM
   category?: string;
+  /** Como o aporte mensal da meta é abastecido. */
+  funding?: 'manual' | 'auto_from_income';
+  /** Valor mensal planejado de aporte (ritmo, Fase 3). */
+  monthlyContribution?: number;
+}
+
+/**
+ * Atribuição mensal de dinheiro a uma categoria (método envelope/YNAB — Fase 3).
+ * Cada registro é um "aporte" no envelope da categoria para o mês `monthKey`
+ * (YYYY-MM). O saldo disponível da categoria = atribuído no mês + rollover
+ * de meses anteriores − gasto do mês.
+ */
+export interface CategoryAllocation {
+  id: string;
+  userId: string;
+  category: string;
+  monthKey: string; // YYYY-MM
+  amount: number;
+  createdAt: string;
+  note?: string;
+}
+
+/** Alertas push/in-app (depreciado em favor de Notification) — mantido p/ compat. */
+export type NotificationKind =
+  | 'budget_warning'
+  | 'budget_exceeded'
+  | 'emergency_fund'
+  | 'irregular_income'
+  | 'goal_progress'
+  | 'goal_deadline'
+  | 'recurrence_upcoming'
+  | 'envelope_exhausted'
+  | 'shared_space';
+
+/**
+ * Notificação/lembrete in-app (Fase 3). As notificações derivadas (orçamento,
+ * recorrência, meta) são geradas determinísticas e idempotentes pelo
+ * notificationService; os registros aqui marcam leitura e chegada.
+ */
+export interface Notification {
+  id: string;
+  userId: string;
+  kind: NotificationKind;
+  title: string;
+  message: string;
+  severity: 'info' | 'warning' | 'danger';
+  triggeredAt: string;
+  readAt?: string | null;
+  actionTab?: 'overview' | 'transactions' | 'budgets' | 'scenarios' | 'accounts' | 'copilot';
+}
+
+/** Papel de um membro num espaço compartilhado (casal/família — Fase 3). */
+export type SpaceRole = 'owner' | 'member';
+
+export interface SpaceMember {
+  userId: string;
+  name: string;
+  email: string;
+  role: SpaceRole;
+  joinedAt: string;
+}
+
+/**
+ * Espaço compartilhado (casal/família). Os dados financeiros vivem no estado
+ * de CADA membro (offline-first); o espaço define quem vê os resumos e
+ * sincroniza saldos por e-mail/convite.
+ */
+export interface SharedSpace {
+  id: string;
+  name: string;
+  ownerUserId: string;
+  country: Country;
+  inviteCode: string;
+  members: SpaceMember[];
+  createdAt: string;
+  /** Preferências de visibilidade entre membros. */
+  settings?: {
+    /** 'full' = membros veem valores; 'summary' = só categorias/tendências. */
+    detailLevel?: 'full' | 'summary';
+  };
 }
 
 export interface ScenarioEvent {
@@ -201,7 +281,13 @@ export interface ChatMessage {
   };
 }
 
-export type AlertType = 'budget_warning' | 'budget_exceeded' | 'emergency_fund' | 'irregular_income' | 'goal_progress';
+export type AlertType =
+  | 'budget_warning'
+  | 'budget_exceeded'
+  | 'emergency_fund'
+  | 'irregular_income'
+  | 'goal_progress'
+  | 'goal_deadline';
 
 export interface Alert {
   id: string;

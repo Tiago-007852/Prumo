@@ -13,6 +13,8 @@ interface HeaderProps {
   onResetData: () => void;
   isOnline?: boolean;
   syncStatus?: SyncStatus;
+  /** Elementos extras (ex.: centro de notificações) renderizados antes dos controles. */
+  children?: React.ReactNode;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -25,6 +27,7 @@ export const Header: React.FC<HeaderProps> = ({
   onResetData,
   isOnline = true,
   syncStatus = 'local',
+  children,
 }) => {
   return (
     <header
@@ -52,8 +55,11 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Right controls: Country, 2FA, Theme, User */}
+        {/* Right controls: Notifications, Country, 2FA, Theme, User */}
         <div className="flex items-center gap-2 sm:gap-3">
+          {/* Centro de notificações (Fase 3) */}
+          {children}
+
           {/* Seletor de País (Brasil / Angola) */}
           <div
             id="country-selector-group"

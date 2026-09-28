@@ -27,6 +27,8 @@ interface AccountsViewProps {
   onSyncAccount: (accountId: string) => Promise<void>;
   onDeleteAccount: (accountId: string) => void;
   onToggle2FA: () => void;
+  /** Conteúdo extra (ex.: espaço compartilhado — Fase 3) renderizado ao final. */
+  children?: React.ReactNode;
 }
 
 export const AccountsView: React.FC<AccountsViewProps> = ({
@@ -37,6 +39,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
   onSyncAccount,
   onDeleteAccount,
   onToggle2FA,
+  children,
 }) => {
   const is2FAEnabled = user.twoFactorEnabled ?? true;
   const [selectedInst, setSelectedInst] = useState<InstitutionOption | null>(null);
@@ -274,6 +277,9 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
           ))}
         </div>
       </div>
+
+      {/* Espaço compartilhado / casal (Fase 3) */}
+      {children}
 
       {/* Modal de Conexão com Consentimento Open Finance */}
       {showConnectModal && selectedInst && (

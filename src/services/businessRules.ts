@@ -10,6 +10,7 @@ import {
   FinancialSnapshot,
   Alert,
   UserProfile,
+  CategoryAllocation,
 } from '../types';
 
 /**
@@ -355,6 +356,190 @@ export function generatePredictiveAlerts(
   }
 
   return alerts;
+}
+
+/**
+ * ─── Metas por categoria (estilo YNAB — Fase 3) ───
+ *
+ * Modelo "Envelope": todo mês o usuário decide quanto do dinheiro disponível
+ * atribui a cada categoria (o "Para atribuir"). O gasto do mês consome o
+ * envelope; dinheiro não gasto fica acumulado na categoria (rola) até ser
+ * usado ou reatribuído.
+ */
+
+/** Status de um envelope de categoria no mês corrente. */
+export type AllocationStatus = 'within' | 'warning' | 'exceeded' | 'underfunded';
+
+export interface CategoryAllocationAnalysis {
+  category: string;
+  /** Total disponível no envelope: atribuído + rolado de meses anteriores. */
+  available: number;
+  /** Valor atribuído SOMENTE neste mês (sem o rollover). */
+  allocatedThisMonth: number;
+  /** Saldo rolado de meses anteriores (pode ser negativo: envelope estourado). */  
+  carriedOver: number;
+  spent: number;
+  remaining: number;
+  percentage: number;
+  status: AllocationStatus;
+}
+
+export interface YnabMonthContext {
+  /** Dinheiro ainda não atribuído a nenhuma categoria neste mês. */
+  toAllocate: number;
+  categories: CategoryAllocationAnalysis[];
+}
+
+/**
+ * Analisa o mês no formato envelope:
+ * - `toAllocate` = receitas do mês − total atribuído no mês (acumula negativo);
+ * - envelope = atribuído no mês + rollover de meses anteriores − gasto do mês.
+ */
+export function buildYnabMonthContext(
+  allocations: CategoryAllocation[],
+  transactions: Transaction[],
+  options?: { monthKey?: string | null }
+): YnabMonthContext {
+  const monthKey = options?.monthKey === undefined ? getCurrentMonthKey() : options.monthKey;
+  const isAllTime = monthKey === null;
+  const scoped = isAllTime
+    ? transactions
+    : transactions.filter((t) => getMonthKey(t.occurredAt) === monthKey);
+
+  // Caixa a distribuir: receitas do mês menos o que já foi atribuído neste mês.
+  let incomeThisMonth = 0;
+  for (const t of scoped) {
+    if (t.type === 'income') incomeThisMonth += Math.abs(t.amount);
+  }
+  const allocatedThisMonthByCat: Record<string, number> = {};
+  if (!isAllTime) {
+    for (const a of allocations) {
+      if (a.monthKey === monthKey) {
+        allocatedThisMonthByCat[a.category] =
+          (allocatedThisMonthByCat[a.category] || 0) + Math.abs(a.amount);
+      }
+    }
+  }
+  const totalAllocatedThisMonth = Object.values(allocatedThisMonthByCat).reduce((s, v) => s + v, 0);
+  const toAllocate = incomeThisMonth - totalAllocatedThisMonth;
+
+  // Rollover por categoria: soma de (atribuído − gasto) dos meses ANTERIORES.
+  const spentAllTimeByCat: Record<string, number> = {};
+  const incomeAllTime = isAllTime ? incomeThisMonth : 0;
+  if (!isAllTime) {
+    for (const t of transactions) {
+      if (t.type !== 'expense') continue;
+      const k = getMonthKey(t.occurredAt);
+      if (!k || k >= monthKey) continue;
+      spentAllTimeByCat[t.category] = (spentAllTimeByCat[t.category] || 0) + Math.abs(t.amount);
+    }
+  }
+  const allocatedBeforeByCat: Record<string, number> = {};
+  if (!isAllTime) {
+    for (const a of allocations) {
+      if (a.monthKey < monthKey) {
+        allocatedBeforeByCat[a.category] =
+          (allocatedBeforeByCat[a.category] || 0) + Math.abs(a.amount);
+      }
+    }
+  }
+  const categories = Object.keys(allocatedThisMonthByCat)
+    .concat(Object.keys(allocatedBeforeByCat))
+    .filter((c, i, arr) => arr.indexOf(c) === i)
+    .sort()
+    .map((category) => {
+      const allocatedThisMonth = allocatedThisMonthByCat[category] || 0;
+      const carriedOver = isAllTime
+        ? 0
+        : (allocatedBeforeByCat[category] || 0) - (spentAllTimeByCat[category] || 0);
+      const available = allocatedThisMonth + carriedOver;
+      const spent = isAllTime ? (spentAllTimeByCat[category] || 0) : scoped
+        .filter((t) => t.type === 'expense' && t.category === category)
+        .reduce((s, t) => s + Math.abs(t.amount), 0);
+      const remaining = Math.max(0, available - spent);
+      const percentage = available > 0 ? Number(((spent / available) * 100).toFixed(1)) : spent > 0 ? 100 : 0;
+
+      let status: AllocationStatus = 'within';
+      if (available <= 0 && spent > 0) status = 'exceeded';
+      else if (spent > available) status = 'exceeded';
+      else if (available > 0 && allocatedThisMonth === 0 && spent > 0) status = 'underfunded';
+      else if (available > 0 && percentage >= 80) status = 'warning';
+
+      return { category, available, allocatedThisMonth, carriedOver, spent, remaining, percentage, status };
+    });
+
+  return { toAllocate, categories };
+}
+
+/**
+ * Sugestão de valor mensal para uma categoria com base no histórico real:
+ * média dos gastos dos últimos `months` meses completos (exclui o mês
+ * corrente, que ainda está em andamento) + margem de segurança de 10%.
+ */
+export function suggestAllocationFromHistory(
+  category: string,
+  transactions: Transaction[],
+  months = 3
+): number {
+  const currentKey = getCurrentMonthKey();
+  const byMonth: Record<string, number> = {};
+  for (const t of transactions) {
+    if (t.type !== 'expense' || t.category !== category) continue;
+    const k = getMonthKey(t.occurredAt);
+    if (!k || k >= currentKey) continue;
+    byMonth[k] = (byMonth[k] || 0) + Math.abs(t.amount);
+  }
+  const monthsList = Object.keys(byMonth)
+    .sort()
+    .slice(-months);
+  if (monthsList.length === 0) return 0;
+  const avg = monthsList.reduce((s, k) => s + byMonth[k], 0) / monthsList.length;
+  return Math.round(avg * 1.1 * 100) / 100;
+}
+
+/**
+ * Ritmo de uma meta: quanto precisa ser guardado por mês para atingir o
+ * valor-alvo até o prazo, e se o ritmo atual (poupança mensal) é suficiente.
+ */
+export interface GoalPace {
+  remaining: number;
+  monthsRemaining: number;
+  /** Aporte mensal necessário para bater a meta no prazo (0 se prazo ausente/passado). */
+  requiredMonthly: number;
+  /** true se o aporte mensal atual cobre o necessário (ou a meta já acabou). */
+  onTrack: boolean | null;
+}
+
+export function computeGoalPace(
+  goal: { targetValue: number; savedValue: number; targetDate?: string },
+  currentMonthlySavings: number,
+  today = new Date()
+): GoalPace {
+  const remaining = Math.max(0, goal.targetValue - goal.savedValue);
+
+  let monthsRemaining: number | null = null;
+  if (goal.targetDate) {
+    const [y, m] = goal.targetDate.split('-').map(Number);
+    if (!isNaN(y) && !isNaN(m) && m >= 1 && m <= 12) {
+      const target = new Date(y, m - 1, 1); // início do mês do prazo
+      const now = new Date(today.getFullYear(), today.getMonth(), 1);
+      monthsRemaining = Math.max(0, Math.round((target.getTime() - now.getTime()) / (30.44 * 86400000)));
+    }
+  }
+
+  const requiredMonthly = monthsRemaining !== null && monthsRemaining > 0 && remaining > 0
+    ? Math.ceil((remaining / monthsRemaining) * 100) / 100
+    : 0;
+
+  const onTrack = remaining <= 0
+    ? true
+    : monthsRemaining === null
+    ? null // sem prazo não dá para julgar o ritmo
+    : monthsRemaining === 0
+    ? false
+    : currentMonthlySavings >= requiredMonthly;
+
+  return { remaining, monthsRemaining: monthsRemaining ?? 0, requiredMonthly, onTrack };
 }
 
 /**

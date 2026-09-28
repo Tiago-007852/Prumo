@@ -162,4 +162,58 @@ export function getUpcomingOccurrences(rule: RecurrenceRule, months = 6): { date
   return out;
 }
 
+/**
+ * Próxima ocorrência FUTURA de uma regra (depois de hoje), para lembretes
+ * do centro de notificações. Retorna null se a regra está inativa, terminou
+ * (endDate) ou não tem mais ocorrências futuras.
+ */
+export function getNextOccurrence(rule: RecurrenceRule, today = new Date()): string | null {
+  if (!rule.active) return null;
+
+  const todayMid = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  if (rule.endDate) {
+    const end = new Date(`${rule.endDate}T00:00:00`);
+    if (!isNaN(end.getTime()) && end < todayMid) return null;
+  }
+
+  if (rule.frequency === 'weekly') {
+    const start = new Date(`${rule.startDate}T00:00:00`);
+    if (isNaN(start.getTime()) || start > todayMid) {
+      return start > todayMid && !isNaN(start.getTime()) ? isoDay(start) : null;
+    }
+    const diffDays = Math.round((todayMid.getTime() - start.getTime()) / 86400000);
+    const steps = Math.floor(diffDays / 7) + 1;
+    return isoDay(new Date(start.getTime() + steps * 7 * 86400000));
+  }
+
+  const start = new Date(`${rule.startDate}T00:00:00`);
+  if (isNaN(start.getTime())) return null;
+  const day = Math.min(Math.max(rule.dayOfMonth || start.getDate(), 1), 31);
+
+  if (rule.frequency === 'yearly') {
+    // Anual: a ocorrência é sempre no MÊS do startDate — caminha os anos.
+    const month = start.getMonth();
+    for (let year = start.getFullYear(); year <= start.getFullYear() + 20; year++) {
+      const occ = new Date(year, month, Math.min(day, daysInMonth(year, month)));
+      if (occ >= start && occ > todayMid) return isoDay(occ);
+    }
+    return null;
+  }
+
+  // Monthly: caminha do mês corrente em diante até achar a próxima ocorrência
+  // futura ainda válida (>= start; clamp dia 31 → fim real do mês).
+  let y = todayMid.getFullYear();
+  let m = todayMid.getMonth();
+  for (let i = 0; i < 14; i++) {
+    const occ = new Date(y, m, Math.min(day, daysInMonth(y, m)));
+    if (occ >= start && occ > todayMid) return isoDay(occ);
+    m += 1;
+    if (m > 11) {
+      y += 1;
+      m = 0;
+    }
+  }
+  return null;
+}
+
 export const recurrenceEngineInternals = { isoDay, monthKeyOf, daysInMonth };

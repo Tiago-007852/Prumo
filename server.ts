@@ -15,6 +15,7 @@ import {
 } from './api/_lib/auth';
 import { saveUserState, loadUserState, exportUserData, deleteUserData } from './api/_lib/userData';
 import { requireUser } from './api/_lib/http';
+import { createSpace, getSpaceByUserId, joinSpace, leaveSpace, getSpaceSummary } from './api/_lib/space';
 
 dotenv.config();
 
@@ -120,6 +121,60 @@ app.get('/api/sync/pull', async (req, res) => {
   } catch (err: any) {
     console.error('Erro no sync pull:', err);
     return res.status(500).json({ error: err?.message || 'Falha ao carregar dados' });
+  }
+});
+
+// ─── Espaço compartilhado (casal/família — Fase 3) ───
+
+app.get('/api/space', async (req, res) => {
+  const user = await requireUser(req);
+  if (!user) return res.status(401).json({ error: 'Sessão expirada. Entre novamente.' });
+  try {
+    const space = await getSpaceByUserId(user.id);
+    if (!space) return res.json({ space: null });
+    const summary = await getSpaceSummary(space.id);
+    return res.json({ space, summary });
+  } catch (err: any) {
+    console.error('Erro ao carregar espaço:', err);
+    return res.status(500).json({ error: err?.message || 'Falha ao carregar espaço' });
+  }
+});
+
+app.post('/api/space', async (req, res) => {
+  const user = await requireUser(req);
+  if (!user) return res.status(401).json({ error: 'Sessão expirada. Entre novamente.' });
+  try {
+    const space = await createSpace(user, req.body?.name);
+    const summary = await getSpaceSummary(space.id);
+    return res.status(201).json({ space, summary });
+  } catch (err: any) {
+    console.error('Erro ao criar espaço:', err);
+    return res.status(400).json({ error: err?.message || 'Falha ao criar espaço' });
+  }
+});
+
+app.post('/api/space/join', async (req, res) => {
+  const user = await requireUser(req);
+  if (!user) return res.status(401).json({ error: 'Sessão expirada. Entre novamente.' });
+  try {
+    const space = await joinSpace(user, req.body?.code);
+    const summary = await getSpaceSummary(space.id);
+    return res.json({ space, summary });
+  } catch (err: any) {
+    console.error('Erro ao entrar no espaço:', err);
+    return res.status(400).json({ error: err?.message || 'Falha ao entrar no espaço' });
+  }
+});
+
+app.post('/api/space/leave', async (req, res) => {
+  const user = await requireUser(req);
+  if (!user) return res.status(401).json({ error: 'Sessão expirada. Entre novamente.' });
+  try {
+    await leaveSpace(user.id);
+    return res.json({ ok: true });
+  } catch (err: any) {
+    console.error('Erro ao sair do espaço:', err);
+    return res.status(400).json({ error: err?.message || 'Falha ao sair do espaço' });
   }
 });
 
