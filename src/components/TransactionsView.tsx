@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Transaction, Account, Country, StandardCategory, RecurrenceRule } from '../types';
+import { Transaction, Account, Country, StandardCategory, RecurrenceRule, CurrencyCode } from '../types';
 import { formatCurrency } from '../services/businessRules';
 import { classifyOffline } from '../services/storageService';
+import { convertAmount, formatMoney, readCachedRates, FALLBACK_RATES, ExchangeRates } from '../services/exchangeRateService';
 import { generateTransactionsCSV, downloadCSV } from '../services/exportService';
 import {
   Plus,
@@ -78,6 +79,9 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
   const [formAccountId, setFormAccountId] = useState(accounts[0]?.id || '');
   const [formMerchant, setFormMerchant] = useState('');
   const [formInstallments, setFormInstallments] = useState('1');
+  /** Multi-moeda (Fase 4): moeda do lançamento — 'local' usa a moeda do país. */
+  const [formCurrency, setFormCurrency] = useState<'local' | CurrencyCode>('local');
+  const [fxRates, setFxRates] = useState<ExchangeRates>(() => readCachedRates() || FALLBACK_RATES);
   const [isClassifying, setIsClassifying] = useState(false);
   const [aiTagMessage, setAiTagMessage] = useState<string | null>(null);
   const [exportNotice, setExportNotice] = useState<string | null>(null);
@@ -156,9 +160,18 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
     }
     setFormError(null);
 
+    // Multi-moeda (Fase 4): se o lançamento é numa moeda estrangeira, converte
+    // para a moeda local do usuário e preserva o valor original.
+    const localCurrency: CurrencyCode = country === 'BR' ? 'BRL' : 'AOA';
+    const chosenCurrency = formCurrency === 'local' ? localCurrency : formCurrency;
+    const isForeign = chosenCurrency !== localCurrency;
+    const amountInLocal = isForeign
+      ? convertAmount(parsedAmount, chosenCurrency, localCurrency, fxRates)
+      : parsedAmount;
+
     const installmentsN = formType === 'expense' ? Math.min(Math.max(parseInt(formInstallments, 10) || 1, 1), 48) : 1;
     const installmentGroupId = installmentsN > 1 ? `inst_${Date.now()}` : undefined;
-    const installmentAmount = installmentsN > 1 ? Math.round(parsedAmount * 100 / installmentsN) / 100 : parsedAmount;
+    const installmentAmount = installmentsN > 1 ? Math.round(amountInLocal * 100 / installmentsN) / 100 : amountInLocal;
 
     // Parcelado: gera N lançamentos (um por mês, só o primeiro pode estar no
     // passado — os demais entram com status futuro, exibidos na lista).
@@ -176,6 +189,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
           source: aiTagMessage ? 'ai_categorized' : 'manual',
           occurredAt: d.toISOString().split('T')[0],
           merchant: formMerchant || undefined,
+          ...(isForeign ? { originalAmount: parsedAmount, originalCurrency: chosenCurrency } : {}),
           installments: { current: i + 1, total: installmentsN, groupId: installmentGroupId! },
         });
       }
@@ -184,12 +198,13 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
         userId: 'current-user',
         accountId: formAccountId || undefined,
         description: formDesc,
-        amount: parsedAmount,
+        amount: amountInLocal,
         type: formType,
         category: formCategory,
         source: aiTagMessage ? 'ai_categorized' : 'manual',
         occurredAt: formDate,
         merchant: formMerchant || undefined,
+        ...(isForeign ? { originalAmount: parsedAmount, originalCurrency: chosenCurrency } : {}),
       });
     }
 
@@ -425,21 +440,45 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
               )}
             </div>
 
-            {/* Valor */}
+            {/* Valor + moeda (multi-moeda — Fase 4) */}
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-[var(--text-dim)]">
-                Valor ({country === 'BR' ? 'R$' : 'Kz'})
+                Valor
               </label>
-              <input
-                id="input-tx-amount"
-                type="number"
-                step="0.01"
-                value={formAmount}
-                onChange={(e) => setFormAmount(e.target.value)}
-                placeholder="0.00"
-                className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-[var(--line)] bg-[var(--surface-2)] text-[var(--text)] focus:outline-none focus:border-[var(--accent)]"
-                required
-              />
+              <div className="flex gap-2">
+                <select
+                  id="select-tx-currency"
+                  value={formCurrency}
+                  onChange={(e) => setFormCurrency(e.target.value as 'local' | CurrencyCode)}
+                  className="px-2 py-2 text-xs rounded-lg border border-[var(--line)] bg-[var(--surface-2)] text-[var(--text)] focus:outline-none focus:border-[var(--accent)]"
+                >
+                  <option value="local">{country === 'BR' ? 'R$ (BRL)' : 'Kz (AOA)'}</option>
+                  <option value="BRL">BRL</option>
+                  <option value="AOA">AOA</option>
+                  <option value="USD">USD</option>
+                </select>
+                <input
+                  id="input-tx-amount"
+                  type="number"
+                  step="0.01"
+                  value={formAmount}
+                  onChange={(e) => setFormAmount(e.target.value)}
+                  placeholder="0.00"
+                  className="flex-1 min-w-0 px-3 py-2 text-xs sm:text-sm rounded-lg border border-[var(--line)] bg-[var(--surface-2)] text-[var(--text)] focus:outline-none focus:border-[var(--accent)]"
+                  required
+                />
+              </div>
+              {formCurrency !== 'local' && (() => {
+                const localCurrency: CurrencyCode = country === 'BR' ? 'BRL' : 'AOA';
+                const chosen = formCurrency as CurrencyCode;
+                const converted = convertAmount(parsedAmountSafe, chosen, localCurrency, fxRates);
+                return (
+                  <div className="text-[11px] text-[var(--accent)] font-medium">
+                    ≈ {formatMoney(converted, localCurrency)} na moeda local
+                    {fxRates.fallback && <span className="text-[var(--text-dim)]"> (câmbio offline)</span>}
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Categoria */}
@@ -714,6 +753,11 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                         }`}
                       >
                         {isIncome ? '+' : '-'} {formatCurrency(Math.abs(t.amount), country)}
+                  {t.originalCurrency && typeof t.originalAmount === 'number' && (
+                    <span className="block text-[10px] text-[var(--text-dim)] font-normal">
+                      ≈ {formatMoney(t.originalAmount, t.originalCurrency)} original
+                    </span>
+                  )}
                       </td>
                       <td className="py-3 px-4 text-center">
                         <button

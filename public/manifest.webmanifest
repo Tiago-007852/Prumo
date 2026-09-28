@@ -1,0 +1,42 @@
+{
+  "name": "Prumo — Copiloto financeiro",
+  "short_name": "Prumo",
+  "description": "O copiloto financeiro que se adapta à sua profissão e às suas metas para o Brasil e Angola.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0B0E14",
+  "theme_color": "#12181F",
+  "lang": "pt",
+  "categories": ["finance", "productivity"],
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Novo lançamento",
+      "short_name": "Lançamento",
+      "url": "/?tab=transactions",
+      "description": "Registrar uma receita ou despesa"
+    },
+    {
+      "name": "Copiloto",
+      "short_name": "Copiloto",
+      "url": "/?tab=copilot",
+      "description": "Conversar com o copiloto financeiro"
+    }
+  ]
+}

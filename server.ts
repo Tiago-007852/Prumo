@@ -16,6 +16,7 @@ import {
 import { saveUserState, loadUserState, exportUserData, deleteUserData } from './api/_lib/userData';
 import { requireUser } from './api/_lib/http';
 import { createSpace, getSpaceByUserId, joinSpace, leaveSpace, getSpaceSummary } from './api/_lib/space';
+import { isPluggyConfigured, createConnectToken } from './api/_lib/pluggy';
 
 dotenv.config();
 
@@ -163,6 +164,48 @@ app.post('/api/space', async (req, res) => {
   } catch (err: any) {
     console.error('Erro ao gerenciar espaço:', err);
     return res.status(400).json({ error: err?.message || 'Falha ao gerenciar espaço' });
+  }
+});
+
+// ─── Open Finance (Pluggy) — Fase 4 ───
+
+app.post('/api/openfinance', async (req, res) => {
+  const user = await requireUser(req);
+  if (!user) return res.status(401).json({ error: 'Sessão expirada. Entre novamente.' });
+  if (!isPluggyConfigured()) {
+    return res.status(501).json({
+      configured: false,
+      error: 'Open Finance não configurado (PLUGGY_CLIENT_ID/PLUGGY_CLIENT_SECRET ausentes).',
+    });
+  }
+  try {
+    const { accessToken } = await createConnectToken(user.id);
+    return res.json({ configured: true, connectToken: accessToken });
+  } catch (err: any) {
+    console.error('Erro ao gerar connect token:', err);
+    return res.status(500).json({ error: err?.message || 'Falha ao iniciar conexão' });
+  }
+});
+
+app.get('/api/openfinance', async (req, res) => {
+  const user = await requireUser(req);
+  if (!user) return res.status(401).json({ error: 'Sessão expirada. Entre novamente.' });
+  if (!isPluggyConfigured()) {
+    return res.status(501).json({ configured: false, error: 'Open Finance não configurado.' });
+  }
+  try {
+    const itemId = String(req.query.accounts || req.query.transactions || '');
+    if (!itemId) return res.status(400).json({ error: 'Informe ?accounts=<itemId> ou ?transactions=<itemId>.' });
+    const { pluggyGet } = await import('./api/_lib/pluggy');
+    if (req.query.accounts) {
+      const accountsRes = await pluggyGet<{ results: unknown[] }>(`/accounts?itemId=${encodeURIComponent(itemId)}`);
+      return res.json({ accounts: accountsRes.results || [] });
+    }
+    const txRes = await pluggyGet<{ results: unknown[] }>(`/transactions?itemId=${encodeURIComponent(itemId)}&pageSize=100`);
+    return res.json({ transactions: txRes.results || [] });
+  } catch (err: any) {
+    console.error('Erro no Open Finance:', err);
+    return res.status(500).json({ error: err?.message || 'Falha no Open Finance' });
   }
 });
 

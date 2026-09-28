@@ -6,7 +6,7 @@
     "dev": "tsx server.ts",
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs && copyfiles prompts/**/* dist/prompts/ --up 1",
     "start": "node dist/server.cjs",
-    "test": "tsx test/business-rules.test.ts && tsx test/storage.test.ts && tsx test/export.test.ts && tsx test/phase1.test.ts && tsx test/phase3.test.ts && tsx test/copiloto-chain.test.ts",
+    "test": "tsx test/business-rules.test.ts && tsx test/storage.test.ts && tsx test/export.test.ts && tsx test/phase1.test.ts && tsx test/phase3.test.ts && tsx test/phase4.test.ts && tsx test/copiloto-chain.test.ts",
     "lint": "tsc --noEmit"
   },
   "dependencies": {

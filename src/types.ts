@@ -4,6 +4,9 @@
 
 export type Country = 'BR' | 'AO';
 
+/** Moedas suportadas no lançamento multi-moeda (Fase 4). A moeda local é implícita. */
+export type CurrencyCode = 'BRL' | 'AOA' | 'USD';
+
 export type IncomeType = 'fixa' | 'variavel' | 'mista';
 
 export type GoalType =
@@ -119,6 +122,9 @@ export interface Transaction {
   tags?: string[];
   /** Parcelamento de cartão: posição atual e total (ex: 2 de 12). */
   installments?: { current: number; total: number; groupId: string } | null;
+  /** Multi-moeda (Fase 4): valor ORIGINAL se o lançamento não foi na moeda local. */
+  originalAmount?: number;
+  originalCurrency?: CurrencyCode;
 }
 
 export type BudgetStatus = 'within' | 'warning' | 'exceeded';

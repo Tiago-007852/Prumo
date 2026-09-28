@@ -675,6 +675,24 @@ export default function App() {
     setAccounts((prev) => [...prev, account]);
   };
 
+  /** Importação Open Finance real (Pluggy — Fase 4): contas + transações. */
+  const handleImportOpenFinance = (imported: Account[], importedTx: Transaction[]) => {
+    if (imported.length > 0) {
+      setAccounts((prev) => [...prev, ...imported]);
+    }
+    if (importedTx.length > 0) {
+      setTransactions((prev) => [
+        ...importedTx.map((t) => ({
+          ...t,
+          id: `tx_of_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
+          createdAt: new Date().toISOString(),
+        })),
+        ...prev,
+      ]);
+    }
+    setActiveTab('accounts');
+  };
+
   const handleSyncAccount = async (accountId: string) => {
     const aggregator = getAccountAggregator(country);
     const newTransactions = await aggregator.syncTransactions(accountId);
@@ -1004,6 +1022,7 @@ Todas as ferramentas do Prumo — incluindo registro de lançamentos, verificaç
               onSyncAccount={handleSyncAccount}
               onDeleteAccount={handleDeleteAccount}
               onToggle2FA={handleToggle2FA}
+              onImportOpenFinance={handleImportOpenFinance}
             >
               <SharedSpaceCard
                 user={user}

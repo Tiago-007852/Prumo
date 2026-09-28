@@ -6,6 +6,7 @@ import {
   BudgetLimit,
   Country,
   Alert,
+  CurrencyCode,
 } from '../types';
 import {
   formatCurrency,
@@ -14,6 +15,7 @@ import {
   analyzeBudgets,
   generatePredictiveAlerts,
 } from '../services/businessRules';
+import { convertAmount, formatMoney, readCachedRates, FALLBACK_RATES, ExchangeRates } from '../services/exchangeRateService';
 import {
   Compass,
   TrendingUp,
@@ -61,6 +63,28 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 }) => {
   const aggregatedBalance = calculateAggregatedBalance(accounts);
   const { totalIncome, totalExpense, netSavings, savingsRate } = calculateTotals(transactions);
+
+  // Multi-moeda (Fase 4): contas em moeda estrangeira entram convertidas.
+  const localCurrency: CurrencyCode = country === 'BR' ? 'BRL' : 'AOA';
+  const [fxRates, setFxRates] = React.useState<ExchangeRates>(() => readCachedRates() || FALLBACK_RATES);
+  React.useEffect(() => {
+    let alive = true;
+    import('../services/exchangeRateService').then((m) => {
+      m.fetchExchangeRates().then((rates) => {
+        if (alive) setFxRates(rates);
+      });
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+  const hasForeignAccounts = accounts.some((a) => a.currency && a.currency !== localCurrency);
+  const aggregatedBalanceConverted = accounts.reduce((sum, acc) => {
+    const accCurrency: CurrencyCode =
+      (acc.currency as string) === 'AOA' ? 'AOA' : (acc.currency as string) === 'USD' ? 'USD' : 'BRL';
+    return sum + convertAmount(acc.balance, accCurrency, localCurrency, fxRates);
+  }, 0);
+  const displayBalance = hasForeignAccounts ? aggregatedBalanceConverted : aggregatedBalance;
   const budgets = analyzeBudgets(budgetLimits, transactions);
   const alerts = generatePredictiveAlerts(user.profile, accounts, transactions, budgetLimits);
 
@@ -243,7 +267,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <Wallet className="w-4 h-4 text-[var(--accent)]" />
           </div>
           <div className="font-serif-display text-2xl sm:text-3xl font-bold text-[var(--text)] tracking-tight">
-            <AnimatedNumber value={aggregatedBalance} country={country} />
+            <AnimatedNumber value={displayBalance} country={country} />
           </div>
           <div className="mt-2 flex items-center justify-between text-xs text-[var(--text-dim)]">
             <span>{accounts.length} contas ({accounts.filter((a) => a.provider === 'open_finance').length} Open Finance)</span>

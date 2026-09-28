@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Account, Country, User } from '../types';
+import { Account, Country, User, Transaction } from '../types';
 import { formatCurrency, formatDate } from '../services/businessRules';
+import { connectOpenFinance } from '../services/openFinanceClient';
 import {
   INSTITUTIONS_REGISTRY,
   InstitutionOption,
@@ -27,6 +28,8 @@ interface AccountsViewProps {
   onSyncAccount: (accountId: string) => Promise<void>;
   onDeleteAccount: (accountId: string) => void;
   onToggle2FA: () => void;
+  /** Importa contas + transações do Open Finance (Pluggy — Fase 4). */
+  onImportOpenFinance?: (accounts: Account[], transactions: Transaction[]) => void;
   /** Conteúdo extra (ex.: espaço compartilhado — Fase 3) renderizado ao final. */
   children?: React.ReactNode;
 }
@@ -39,6 +42,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
   onSyncAccount,
   onDeleteAccount,
   onToggle2FA,
+  onImportOpenFinance,
   children,
 }) => {
   const is2FAEnabled = user.twoFactorEnabled ?? true;
@@ -50,6 +54,23 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
   const [inputBalance, setInputBalance] = useState('');
   const [accountKind, setAccountKind] = useState<'checking' | 'savings' | 'investment'>('checking');
   const [isAuthorizing, setIsAuthorizing] = useState(false);
+  /** Open Finance real via Pluggy (Fase 4) — apenas BR. */
+  const [ofBusy, setOfBusy] = useState(false);
+  const [ofError, setOfError] = useState<string | null>(null);
+
+  const handleConnectOpenFinance = async () => {
+    if (ofBusy) return;
+    setOfBusy(true);
+    setOfError(null);
+    try {
+      const result = await connectOpenFinance(user.id, country);
+      onImportOpenFinance?.(result.accounts, result.transactions);
+    } catch (err) {
+      setOfError(err instanceof Error ? err.message : 'Falha na conexão Open Finance');
+    } finally {
+      setOfBusy(false);
+    }
+  };
 
   // Listar bancos do país atual
   const availableInstitutions = INSTITUTIONS_REGISTRY.filter((i) => i.country === country);
@@ -152,6 +173,36 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Open Finance real (Pluggy) — Fase 4, apenas Brasil */}
+      {country === 'BR' && (
+        <div className="rounded-xl border border-[var(--accent)]/30 bg-[var(--accent-soft)]/40 p-5 shadow-xs space-y-3">
+          <div className="flex items-start justify-between gap-3 flex-col sm:flex-row">
+            <div>
+              <h3 className="font-serif-display text-base font-bold text-[var(--text)] flex items-center gap-2">
+                <Building2 className="w-4 h-4 text-[var(--accent)]" />
+                Importação automática — Open Finance Brasil
+              </h3>
+              <p className="text-xs text-[var(--text-dim)] mt-1 max-w-xl">
+                Conecte seus bancos via Pluggy (infraestrutura regulada do Open Finance). Contas e
+                transações entram automaticamente, categorizadas. Você pode continuar usando o modo
+                manual ou importação OFX normalmente.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleConnectOpenFinance}
+              disabled={ofBusy || !is2FAEnabled}
+              className="shrink-0 px-4 py-2 rounded-lg bg-[var(--accent)] text-white text-xs font-semibold hover:opacity-90 disabled:opacity-50 shadow-xs cursor-pointer"
+            >
+              {ofBusy ? 'Conectando...' : 'Conectar bancos (Open Finance)'}
+            </button>
+          </div>
+          {ofError && (
+            <div className="text-xs font-medium text-[var(--danger)]">{ofError}</div>
+          )}
         </div>
       )}
 
