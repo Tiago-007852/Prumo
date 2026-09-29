@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { requireUser, unauthorized } from '../_lib/http';
 import { loadUserState, saveUserState } from '../_lib/userData';
+import { confirmPayment, activateWithCode, createCheckoutSession } from '../_lib/payments';
 
 /**
  * Sync offline-first — pull e push numa única serverless, para respeitar o
@@ -20,6 +21,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (req.method === 'POST') {
+      // ─── Ações de pagamento (Fase 5) na mesma função — limite de 12 ───
+      if (req.body?.action === 'checkout_start') {
+        try {
+          const session = await createCheckoutSession(user.id);
+          return res.status(200).json({ ok: true, url: session.url, sessionId: session.sessionId });
+        } catch (coErr: any) {
+          if (coErr?.code === 'not_configured') {
+            return res.status(501).json({ error: coErr.message, configured: false });
+          }
+          return res.status(400).json({ error: coErr?.message || 'Falha ao iniciar checkout' });
+        }
+      }
+      if (req.body?.action === 'payment_confirm') {
+        const sessionId = String(req.body.sessionId || '');
+        try {
+          const result = await confirmPayment(user.id, sessionId);
+          return res.status(200).json({ ok: true, accessUntil: result.accessUntil, recurring: result.recurring });
+        } catch (payErr: any) {
+          if (payErr?.code === 'not_configured') {
+            return res.status(501).json({ error: payErr.message, configured: false });
+          }
+          return res.status(400).json({ error: payErr?.message || 'Pagamento não confirmado' });
+        }
+      }
+      if (req.body?.action === 'activate_code') {
+        try {
+          const accessUntil = await activateWithCode(user.id, String(req.body.code || ''));
+          return res.status(200).json({ ok: true, accessUntil });
+        } catch (codeErr: any) {
+          if (codeErr?.code === 'not_configured') {
+            return res.status(501).json({ error: codeErr.message, configured: false });
+          }
+          return res.status(400).json({ error: codeErr?.message || 'Código inválido' });
+        }
+      }
+
       const result = await saveUserState(user.id, user.country, req.body);
       return res.status(200).json({ ok: true, savedAt: result.savedAt });
     }

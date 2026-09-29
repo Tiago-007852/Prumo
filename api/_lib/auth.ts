@@ -6,6 +6,7 @@
 import { randomBytes } from 'crypto';
 import bcrypt from 'bcryptjs';
 import { getSql, ensureSchema } from './db';
+import { ensurePaymentsSchema } from './payments';
 
 export interface AuthUser {
   id: string;
@@ -49,6 +50,7 @@ export async function registerUser(input: {
   country?: unknown;
 }): Promise<AuthResult> {
   await ensureSchema();
+  await ensurePaymentsSchema(); // colunas de acesso existem antes do insert
   const email = normalizeEmail(input.email);
   const password = String(input.password || '');
 
@@ -67,9 +69,11 @@ export async function registerUser(input: {
   const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
   const id = `usr_${randomBytes(8).toString('hex')}`;
 
+  // Contas novas nascem SEM acesso (paywall Fase 5). Usuários anteriores
+  // ficam grandfathered pelo DEFAULT true da migração em ensurePaymentsSchema.
   const rows = await sql`
-    INSERT INTO users (id, email, password_hash, name, country)
-    VALUES (${id}, ${email}, ${passwordHash}, ${name}, ${country})
+    INSERT INTO users (id, email, password_hash, name, country, has_access)
+    VALUES (${id}, ${email}, ${passwordHash}, ${name}, ${country}, false)
     RETURNING id, email, name, country
   `;
   const user = rows[0] as unknown as AuthUser;

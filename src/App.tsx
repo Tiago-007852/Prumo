@@ -63,6 +63,8 @@ import {
   type StorageOwner,
 } from './services/storageService';
 import { OnboardingWizard, type OnboardingResult } from './components/OnboardingWizard';
+import { SalesFunnelView } from './components/SalesFunnelView';
+import { fetchAccess, confirmPayment, type AccessInfo } from './services/accessService';
 import { PlumbLine } from './components/PlumbLine';
 import {
   fetchMe,
@@ -147,6 +149,16 @@ export default function App() {
   // 3. Modals
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [pendingOnboarding, setPendingOnboarding] = useState(false);
+
+  // 3.1 Paywall (Fase 5): estado de acesso da conta real. null = ainda não
+  // carregado/falha de rede → degrade aberto (nunca bloquear por bug).
+  const [access, setAccess] = useState<AccessInfo | null>(null);
+  const [funnelQuiz, setFunnelQuiz] = useState<{
+    monthlyIncome?: number;
+    primaryGoal?: string;
+    goalTargetValue?: number;
+    accountsCount: number;
+  }>({ accountsCount: 0 });
 
   // 4. State Storage (LocalStorage por país; contas reais com estado vazio)
   const storageOwner: StorageOwner = useMemo(
@@ -277,6 +289,27 @@ export default function App() {
       if (me) {
         setAuthUser(me);
         setAuthStatus('authed');
+        // Paywall (Fase 5): estado de acesso vem no mesmo /me.
+        fetchAccess().then((a) => {
+          if (!cancelled) setAccess(a);
+        });
+        // Volta do checkout Stripe: /?pagamento=ok&session_id=cs_...
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('pagamento') === 'ok') {
+          const sessionId = params.get('session_id');
+          window.history.replaceState({}, '', window.location.pathname);
+          if (sessionId) {
+            confirmPayment(sessionId).then((res) => {
+              if (res.ok) {
+                fetchAccess().then((a) => {
+                  if (!cancelled) setAccess(a);
+                });
+              } else {
+                console.error('Confirmação de pagamento falhou:', res.error);
+              }
+            });
+          }
+        }
       } else {
         setAuthStatus('guest');
       }
@@ -294,6 +327,8 @@ export default function App() {
   const handleAuthSuccess = async (account: AuthUser, justRegistered: boolean) => {
     setAuthUser(account);
     setAuthStatus('authed');
+    // Paywall (Fase 5): carrega o estado de acesso da conta recém-autenticada.
+    fetchAccess().then((a) => setAccess(a));
     if (justRegistered) {
       // Conta recém-criada: estado vazio com a identidade real (sem mock).
       const freshUser: User = {
@@ -330,7 +365,14 @@ export default function App() {
   };
 
   // Conclusão do onboarding: aplica perfil + contas + orçamentos informados
+  // e guarda os dados do quiz para personalizar a oferta do funil (Fase 5).
   const handleOnboardingComplete = (result: OnboardingResult) => {
+    setFunnelQuiz({
+      monthlyIncome: result.profile.monthlyIncomeExpectation,
+      primaryGoal: result.profile.primaryGoal,
+      goalTargetValue: result.profile.goalTargetValue,
+      accountsCount: result.accounts.length,
+    });
     setUser((prev) => ({
       ...prev,
       profile: { ...prev.profile, ...result.profile },
@@ -909,6 +951,31 @@ Todas as ferramentas do Prumo — incluindo registro de lançamentos, verificaç
         country={country}
         onComplete={handleOnboardingComplete}
         onSkip={handleOnboardingSkip}
+      />
+    );
+  }
+
+  // Paywall (Fase 5): contas reais sem acesso ativo veem o funil de vendas.
+  // Demo continua aberto (vitrine); falha de rede = degrade aberto.
+  if (
+    authStatus === 'authed' &&
+    !isDemoMode &&
+    user.onboardingCompleted &&
+    access !== null &&
+    !access.hasAccess
+  ) {
+    return (
+      <SalesFunnelView
+        name={user.name}
+        country={country}
+        quiz={funnelQuiz}
+        access={access}
+        onUnlocked={() => {
+          fetchAccess().then((a) => {
+            if (a) setAccess(a);
+          });
+        }}
+        onExit={handleLogout}
       />
     );
   }

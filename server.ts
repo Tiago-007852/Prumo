@@ -17,6 +17,13 @@ import { saveUserState, loadUserState, exportUserData, deleteUserData } from './
 import { requireUser } from './api/_lib/http';
 import { createSpace, getSpaceByUserId, joinSpace, leaveSpace, getSpaceSummary } from './api/_lib/space';
 import { isPluggyConfigured, createConnectToken } from './api/_lib/pluggy';
+import {
+  confirmPayment,
+  activateWithCode,
+  createCheckoutSession,
+  getAccess,
+  ensurePaymentsSchema,
+} from './api/_lib/payments';
 
 dotenv.config();
 
@@ -96,7 +103,17 @@ app.post('/api/auth/logout', async (req, res) => {
 app.get('/api/auth/me', async (req, res) => {
   const user = await getUserByToken(readToken(req.headers.cookie));
   if (!user) return res.status(401).json({ error: 'Não autenticado' });
-  return res.json({ user });
+  try {
+    // Migração idempotente das colunas de acesso + estado do paywall (Fase 5).
+    // Colunas novas nascem com has_access = true — usuários antigos grandfathered.
+    await ensurePaymentsSchema();
+    const access = await getAccess(user.id);
+    return res.json({ user, access });
+  } catch (err: any) {
+    console.error('Erro ao carregar acesso (/me):', err);
+    // Falha de schema/pagamentos não pode derrubar o login — degrade aberto.
+    return res.json({ user, access: { hasAccess: true, accessUntil: null, stripeConfigured: false, priceConfigured: false } });
+  }
 });
 
 // ─── Sync do estado offline-first ───
@@ -105,6 +122,43 @@ app.post('/api/sync', async (req, res) => {
   const user = await requireUser(req);
   if (!user) return res.status(401).json({ error: 'Sessão expirada. Entre novamente.' });
   try {
+    // ─── Ações de pagamento (Fase 5) viajam na mesma rota para não nascer
+    // uma 13ª serverless — o corpo de push de estado não tem `action` ───
+    if (req.body?.action === 'checkout_start') {
+      try {
+        const session = await createCheckoutSession(user.id);
+        return res.json({ ok: true, url: session.url, sessionId: session.sessionId });
+      } catch (coErr: any) {
+        if (coErr?.code === 'not_configured') {
+          return res.status(501).json({ error: coErr.message, configured: false });
+        }
+        return res.status(400).json({ error: coErr?.message || 'Falha ao iniciar checkout' });
+      }
+    }
+    if (req.body?.action === 'payment_confirm') {
+      const sessionId = String(req.body.sessionId || '');
+      try {
+        const result = await confirmPayment(user.id, sessionId);
+        return res.json({ ok: true, accessUntil: result.accessUntil, recurring: result.recurring });
+      } catch (payErr: any) {
+        if (payErr?.code === 'not_configured') {
+          return res.status(501).json({ error: payErr.message, configured: false });
+        }
+        return res.status(400).json({ error: payErr?.message || 'Pagamento não confirmado' });
+      }
+    }
+    if (req.body?.action === 'activate_code') {
+      try {
+        const accessUntil = await activateWithCode(user.id, String(req.body.code || ''));
+        return res.json({ ok: true, accessUntil });
+      } catch (codeErr: any) {
+        if (codeErr?.code === 'not_configured') {
+          return res.status(501).json({ error: codeErr.message, configured: false });
+        }
+        return res.status(400).json({ error: codeErr?.message || 'Código inválido' });
+      }
+    }
+
     const result = await saveUserState(user.id, user.country, req.body);
     return res.json({ ok: true, savedAt: result.savedAt });
   } catch (err: any) {

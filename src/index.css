@@ -96,6 +96,11 @@ body {
   animation: prumo-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
+/* ─── Entrada dos passos do funil de vendas (Fase 5) ─── */
+.funnel-step {
+  animation: prumo-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 /* ─── Impressão (Relatório Mensal → PDF) ───
  * Quando o relatório está aberto, imprime apenas a área .print-area,
  * sem cabeçalhos, navegação ou rodapés do app. */

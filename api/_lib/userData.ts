@@ -33,6 +33,9 @@ export function sanitizeState(input: unknown): StoredUserState | null {
       locale: String(u.locale || '').slice(0, 10),
       profile: (u.profile && typeof u.profile === 'object') ? u.profile : {},
       twoFactorEnabled: !!u.twoFactorEnabled,
+      // Paywall (Fase 5): preservar a flag do onboarding — ausente em estados
+      // antigos = true (grandfathered); false impede burlar o funil ao recarregar.
+      onboardingCompleted: u.onboardingCompleted !== false,
     },
     accounts: arr(o.accounts).slice(0, 100),
     transactions: arr(o.transactions).slice(0, 5000),
