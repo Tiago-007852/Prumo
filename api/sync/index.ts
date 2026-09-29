@@ -2,6 +2,30 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { requireUser, unauthorized } from '../_lib/http';
 import { loadUserState, saveUserState } from '../_lib/userData';
 import { confirmPayment, activateWithCode, createCheckoutSession } from '../_lib/payments';
+import { googleLoginUser, SESSION_COOKIE } from '../_lib/auth';
+import {
+  requireAdmin,
+  getAdminKpis,
+  adminGenerateCodes,
+  adminListCodes,
+  adminSearchUsers,
+  adminExpiringSoon,
+  adminExtendAccess,
+  adminRevokeAccess,
+  adminRecentActions,
+} from '../_lib/admin';
+
+/** Envolve um handler admin: 403/401 com a mensagem certa. */
+async function adminAction(res: VercelResponse, user: { id: string; email: string }, fn: () => Promise<unknown>) {
+  try {
+    requireAdmin(user);
+    const data = await fn();
+    return res.status(200).json({ ok: true, data });
+  } catch (err: any) {
+    const status = err?.status || 500;
+    return res.status(status).json({ error: err?.message || 'Falha na operação admin' });
+  }
+}
 
 /**
  * Sync offline-first — pull e push numa única serverless, para respeitar o
@@ -21,6 +45,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (req.method === 'POST') {
+      // ─── Login com Google (token GIS validado no servidor) ───
+      // Rota pública: corre ANTES do requireUser — é ela que cria a sessão.
+      if (req.body?.action === 'google_auth') {
+        try {
+          const result = await googleLoginUser({ idToken: req.body.idToken });
+          res.setHeader(
+            'Set-Cookie',
+            `${SESSION_COOKIE}=${result.token}; HttpOnly; Secure; SameSite=Lax; Path=/; Expires=${result.expiresAt.toUTCString()}`
+          );
+          return res.status(200).json({ user: result.user });
+        } catch (gErr: any) {
+          const status = gErr?.code === 'not_configured' ? 501 : 401;
+          return res.status(status).json({ error: gErr?.message || 'Falha no login com Google', configured: gErr?.code !== 'not_configured' });
+        }
+      }
+
       // ─── Ações de pagamento (Fase 5) na mesma função — limite de 12 ───
       if (req.body?.action === 'checkout_start') {
         try {
@@ -55,6 +95,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }
           return res.status(400).json({ error: codeErr?.message || 'Código inválido' });
         }
+      }
+
+      // ─── Painel Admin (Fase A) — requireAdmin no servidor ───
+      if (req.body?.action === 'admin_kpis') {
+        return adminAction(res, user, () => getAdminKpis());
+      }
+      if (req.body?.action === 'admin_codes_generate') {
+        return adminAction(res, user, () =>
+          adminGenerateCodes(user.email, Number(req.body.count), Number(req.body.days), req.body.note)
+        );
+      }
+      if (req.body?.action === 'admin_codes_list') {
+        return adminAction(res, user, () => adminListCodes(Number(req.body.limit) || 50));
+      }
+      if (req.body?.action === 'admin_users_search') {
+        return adminAction(res, user, () => adminSearchUsers(String(req.body.query || ''), Number(req.body.limit) || 20));
+      }
+      if (req.body?.action === 'admin_users_expiring') {
+        return adminAction(res, user, () => adminExpiringSoon(Number(req.body.days) || 7));
+      }
+      if (req.body?.action === 'admin_user_extend') {
+        return adminAction(res, user, () => adminExtendAccess(user.email, String(req.body.userId), Number(req.body.days)));
+      }
+      if (req.body?.action === 'admin_user_revoke') {
+        return adminAction(res, user, () => adminRevokeAccess(user.email, String(req.body.userId)));
+      }
+      if (req.body?.action === 'admin_audit') {
+        return adminAction(res, user, () => adminRecentActions(Number(req.body.limit) || 30));
       }
 
       const result = await saveUserState(user.id, user.country, req.body);

@@ -6,7 +6,12 @@
  */
 
 import { PRICING_BR, PRICING_AO, pricingFor } from '../src/config/pricing';
-import { isValidCheckoutSessionId, evaluateAccess } from '../src/services/accessRules';
+import {
+  isValidCheckoutSessionId,
+  evaluateAccess,
+  normalizeActivationCode,
+  isValidActivationCodeFormat,
+} from '../src/services/accessRules';
 
 let passed = 0;
 let failed = 0;
@@ -54,6 +59,19 @@ assert(evaluateAccess({ hasAccess: false, accessUntil: FUTURE }) === false, 'has
 assert(evaluateAccess({ hasAccess: true, accessUntil: null }) === true, 'Sem access_until + has_access → liberado (grandfathered)');
 assert(evaluateAccess({ hasAccess: null, accessUntil: null }) === true, 'Colunas ausentes → liberado (grandfathering de coluna)');
 assert(evaluateAccess({ hasAccess: false, accessUntil: null }) === false, 'has_access false sem validade → bloqueado');
+
+// ─── Códigos de ativação single-use (formato/normalização) ───
+
+assert(isValidActivationCodeFormat('PRUMO-BB7F-JYQX-WBFN'), 'formato de código single-use válido');
+assert(isValidActivationCodeFormat('prumo bb7f jyqx wbfn'), 'entrada em minúsculas/espaços normaliza para válido');
+assert(
+  normalizeActivationCode('  prumo-bb7f--jyqx  wbfn  ') === 'PRUMO-BB7F-JYQX-WBFN',
+  'normalização: trim + maiúsculas + colapsar traços/espacos'
+);
+assert(!isValidActivationCodeFormat('PRUMO-IOLO-0000-1111'), 'caracteres ambíguos (I/O/0/1) rejeitados');
+assert(!isValidActivationCodeFormat('PRUMO-BB7F-JYQX'), 'código curto rejeitado');
+assert(!isValidActivationCodeFormat('XYZ-AAAA-BBBB-CCCC'), 'prefixo errado rejeitado');
+assert(!isValidActivationCodeFormat(''), 'código vazio rejeitado');
 
 // ─── Anti-burla: sanitizeState preserva onboardingCompleted ───
 // Espelho do comportamento exigido em api/_lib/userData.ts (sanitizeState):

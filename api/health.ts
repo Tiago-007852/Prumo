@@ -14,5 +14,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     aiProvider: resolveAiProviderName() || (!!process.env.GEMINI_API_KEY ? 'gemini' : null),
     aiModel: resolvePreferredModel(),
     databaseConfigured: !!process.env.DATABASE_URL,
+    googleClientId: process.env.GOOGLE_CLIENT_ID || null,
   });
 }

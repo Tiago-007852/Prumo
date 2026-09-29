@@ -11,6 +11,8 @@ import {
   loginUser,
   getUserByToken,
   destroySession,
+  googleLoginUser,
+  isGoogleAuthConfigured,
   SESSION_COOKIE,
 } from './api/_lib/auth';
 import { saveUserState, loadUserState, exportUserData, deleteUserData } from './api/_lib/userData';
@@ -24,6 +26,33 @@ import {
   getAccess,
   ensurePaymentsSchema,
 } from './api/_lib/payments';
+import {
+  isAdminEmail,
+  requireAdmin,
+  getAdminKpis,
+  adminGenerateCodes,
+  adminListCodes,
+  adminSearchUsers,
+  adminExpiringSoon,
+  adminExtendAccess,
+  adminRevokeAccess,
+  adminRecentActions,
+} from './api/_lib/admin';
+
+/** Envolve um handler admin (Express): 403/401 com a mensagem certa. */
+async function adminActionExpress(
+  res: import('express').Response,
+  user: { id: string; email: string },
+  fn: () => Promise<unknown>
+) {
+  try {
+    requireAdmin(user);
+    const data = await fn();
+    return res.json({ ok: true, data });
+  } catch (err: any) {
+    return res.status(err?.status || 500).json({ error: err?.message || 'Falha na operação admin' });
+  }
+}
 
 dotenv.config();
 
@@ -108,7 +137,8 @@ app.get('/api/auth/me', async (req, res) => {
     // Colunas novas nascem com has_access = true — usuários antigos grandfathered.
     await ensurePaymentsSchema();
     const access = await getAccess(user.id);
-    return res.json({ user, access });
+    // Painel Admin: flag para mostrar/ocultar a tab (verificação real nas actions)
+    return res.json({ user, access, isAdmin: isAdminEmail(user.email) });
   } catch (err: any) {
     console.error('Erro ao carregar acesso (/me):', err);
     // Falha de schema/pagamentos não pode derrubar o login — degrade aberto.
@@ -118,7 +148,28 @@ app.get('/api/auth/me', async (req, res) => {
 
 // ─── Sync do estado offline-first ───
 
+// ─── Login com Google (Fase 6) ───
+
 app.post('/api/sync', async (req, res) => {
+  try {
+    // ─── Login com Google (rota pública, corre antes do requireUser) ───
+    if (req.body?.action === 'google_auth') {
+      try {
+        const result = await googleLoginUser({ idToken: req.body.idToken });
+        res.setHeader(
+          'Set-Cookie',
+          `${SESSION_COOKIE}=${result.token}; HttpOnly; Secure; SameSite=Lax; Path=/; Expires=${result.expiresAt.toUTCString()}`
+        );
+        return res.json({ user: result.user });
+      } catch (gErr: any) {
+        const status = gErr?.code === 'not_configured' ? 501 : 401;
+        return res.status(status).json({ error: gErr?.message || 'Falha no login com Google', configured: gErr?.code !== 'not_configured' });
+      }
+    }
+  } catch (outerErr: any) {
+    console.error('Erro no pre-auth do sync:', outerErr);
+  }
+
   const user = await requireUser(req);
   if (!user) return res.status(401).json({ error: 'Sessão expirada. Entre novamente.' });
   try {
@@ -157,6 +208,34 @@ app.post('/api/sync', async (req, res) => {
         }
         return res.status(400).json({ error: codeErr?.message || 'Código inválido' });
       }
+    }
+
+    // ─── Painel Admin (Fase A) — requireAdmin no servidor ───
+    if (req.body?.action === 'admin_kpis') {
+      return adminActionExpress(res, user, () => getAdminKpis());
+    }
+    if (req.body?.action === 'admin_codes_generate') {
+      return adminActionExpress(res, user, () =>
+        adminGenerateCodes(user.email, Number(req.body.count), Number(req.body.days), req.body.note)
+      );
+    }
+    if (req.body?.action === 'admin_codes_list') {
+      return adminActionExpress(res, user, () => adminListCodes(Number(req.body.limit) || 50));
+    }
+    if (req.body?.action === 'admin_users_search') {
+      return adminActionExpress(res, user, () => adminSearchUsers(String(req.body.query || ''), Number(req.body.limit) || 20));
+    }
+    if (req.body?.action === 'admin_users_expiring') {
+      return adminActionExpress(res, user, () => adminExpiringSoon(Number(req.body.days) || 7));
+    }
+    if (req.body?.action === 'admin_user_extend') {
+      return adminActionExpress(res, user, () => adminExtendAccess(user.email, String(req.body.userId), Number(req.body.days)));
+    }
+    if (req.body?.action === 'admin_user_revoke') {
+      return adminActionExpress(res, user, () => adminRevokeAccess(user.email, String(req.body.userId)));
+    }
+    if (req.body?.action === 'admin_audit') {
+      return adminActionExpress(res, user, () => adminRecentActions(Number(req.body.limit) || 30));
     }
 
     const result = await saveUserState(user.id, user.country, req.body);
@@ -313,6 +392,7 @@ app.get('/api/health', (req, res) => {
     aiProvider: resolveAiProviderName() || (!!process.env.GEMINI_API_KEY ? 'gemini' : null),
     aiModel: resolvePreferredModel(),
     databaseConfigured: !!process.env.DATABASE_URL,
+    googleClientId: process.env.GOOGLE_CLIENT_ID || null,
   });
 });
 

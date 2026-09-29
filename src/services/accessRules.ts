@@ -26,3 +26,22 @@ export function evaluateAccess(row: AccessRowLike, now: Date = new Date()): bool
   if (!row.accessUntil) return true;
   return new Date(row.accessUntil).getTime() > now.getTime();
 }
+
+/* ─── Códigos de ativação single-use (Fase 5) ───
+ * Formato PRUMO-XXXX-XXXX-XXXX com alfabeto sem caracteres ambíguos
+ * (sem I/L/O/0/1) — igual ao gerador em scripts/generate-codes.mjs. */
+export const ACTIVATION_CODE_PATTERN = /^PRUMO-[A-HJKMNP-Z2-9]{4}-[A-HJKMNP-Z2-9]{4}-[A-HJKMNP-Z2-9]{4}$/;
+
+/** Normaliza entrada do usuário: trim, maiúsculas, espaços viram traços. */
+export function normalizeActivationCode(code: unknown): string {
+  return String(code || '')
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-');
+}
+
+/** Confere o formato (após normalizar). */
+export function isValidActivationCodeFormat(code: unknown): boolean {
+  return ACTIVATION_CODE_PATTERN.test(normalizeActivationCode(code));
+}

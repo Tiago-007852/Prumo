@@ -64,7 +64,8 @@ import {
 } from './services/storageService';
 import { OnboardingWizard, type OnboardingResult } from './components/OnboardingWizard';
 import { SalesFunnelView } from './components/SalesFunnelView';
-import { fetchAccess, confirmPayment, type AccessInfo } from './services/accessService';
+import { fetchAccess, fetchIsAdmin, confirmPayment, type AccessInfo } from './services/accessService';
+import { AdminView } from './components/AdminView';
 import { PlumbLine } from './components/PlumbLine';
 import {
   fetchMe,
@@ -153,6 +154,8 @@ export default function App() {
   // 3.1 Paywall (Fase 5): estado de acesso da conta real. null = ainda não
   // carregado/falha de rede → degrade aberto (nunca bloquear por bug).
   const [access, setAccess] = useState<AccessInfo | null>(null);
+  // Painel Admin (Fase A): flag do /me — decisão de exibição; autorização real é server-side.
+  const [isAdmin, setIsAdmin] = useState(false);
   const [funnelQuiz, setFunnelQuiz] = useState<{
     monthlyIncome?: number;
     primaryGoal?: string;
@@ -293,6 +296,10 @@ export default function App() {
         fetchAccess().then((a) => {
           if (!cancelled) setAccess(a);
         });
+        // Painel Admin: flag para exibir a tab (autorização real é server-side).
+        fetchIsAdmin().then((v) => {
+          if (!cancelled) setIsAdmin(v);
+        });
         // Volta do checkout Stripe: /?pagamento=ok&session_id=cs_...
         const params = new URLSearchParams(window.location.search);
         if (params.get('pagamento') === 'ok') {
@@ -329,6 +336,8 @@ export default function App() {
     setAuthStatus('authed');
     // Paywall (Fase 5): carrega o estado de acesso da conta recém-autenticada.
     fetchAccess().then((a) => setAccess(a));
+    // Painel Admin: flag de exibição da tab.
+    fetchIsAdmin().then((v) => setIsAdmin(v));
     if (justRegistered) {
       // Conta recém-criada: estado vazio com a identidade real (sem mock).
       const freshUser: User = {
@@ -451,6 +460,7 @@ export default function App() {
     setSyncStatus('local');
     setPendingOnboarding(false);
     setSeedAppliedFor(null);
+    setIsAdmin(false);
   };
 
   // Apply dark mode class to document element
@@ -1006,6 +1016,7 @@ Todas as ferramentas do Prumo — incluindo registro de lançamentos, verificaç
         activeTab={activeTab}
         onTabChange={(tab) => setActiveTab(tab)}
         unreadAlertsCount={predictiveAlerts.length}
+        showAdminTab={isAdmin}
       />
 
       {/* Main Content Area — cada aba entra com animação de reveal */}
@@ -1115,6 +1126,12 @@ Todas as ferramentas do Prumo — incluindo registro de lançamentos, verificaç
                 }}
               />
             </AccountsView>
+          </div>
+        )}
+
+        {activeTab === 'admin' && isAdmin && (
+          <div className="reveal reveal-visible">
+            <AdminView onToast={undefined} />
           </div>
         )}
 

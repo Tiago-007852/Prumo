@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { getUserByToken } from '../_lib/auth';
 import { readSessionToken } from '../_lib/http';
 import { getAccess, ensurePaymentsSchema } from '../_lib/payments';
+import { isAdminEmail } from '../_lib/admin';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
@@ -18,13 +19,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Colunas novas nascem com has_access = true — usuários antigos grandfathered.
     await ensurePaymentsSchema();
     const access = await getAccess(user.id);
-    return res.status(200).json({ user, access });
+    // Painel Admin: flag para mostrar/ocultar a tab (verificação real nas actions)
+    return res.status(200).json({ user, access, isAdmin: isAdminEmail(user.email) });
   } catch (err: any) {
     console.error('Erro ao carregar acesso (/me):', err);
     // Falha de schema/pagamentos não pode derrubar o login — degrade aberto.
     return res.status(200).json({
       user,
       access: { hasAccess: true, accessUntil: null, stripeConfigured: false, priceConfigured: false },
+      isAdmin: false,
     });
   }
 }

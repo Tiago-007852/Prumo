@@ -6,20 +6,24 @@ import {
   TrendingUp,
   Building2,
   Sparkles,
+  ShieldCheck,
 } from 'lucide-react';
 
-export type TabKey = 'overview' | 'transactions' | 'budgets' | 'scenarios' | 'accounts' | 'copilot';
+export type TabKey = 'overview' | 'transactions' | 'budgets' | 'scenarios' | 'accounts' | 'copilot' | 'admin';
 
 interface NavigationProps {
   activeTab: TabKey;
   onTabChange: (tab: TabKey) => void;
   unreadAlertsCount?: number;
+  /** Mostrar a tab Admin (apenas admins — decidido no App via /me). */
+  showAdminTab?: boolean;
 }
 
 export const Navigation: React.FC<NavigationProps> = ({
   activeTab,
   onTabChange,
   unreadAlertsCount = 0,
+  showAdminTab = false,
 }) => {
   const tabs: Array<{ key: TabKey; label: string; icon: React.ComponentType<{ className?: string }> }> = [
     { key: 'overview', label: 'Visão Geral', icon: LayoutDashboard },
@@ -28,6 +32,7 @@ export const Navigation: React.FC<NavigationProps> = ({
     { key: 'scenarios', label: 'Simulação de Cenários', icon: TrendingUp },
     { key: 'accounts', label: 'Contas & Open Finance', icon: Building2 },
     { key: 'copilot', label: 'Copiloto IA', icon: Sparkles },
+    ...(showAdminTab ? [{ key: 'admin' as TabKey, label: 'Admin', icon: ShieldCheck }] : []),
   ];
 
   return (

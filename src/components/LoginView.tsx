@@ -59,10 +59,24 @@ export const LoginView: React.FC<LoginViewProps> = ({ onAuthSuccess, onRegistere
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const handleGoogleAuth = () => {
-    setError(
-      'Login social chega em breve. Por enquanto, use email e senha — é igualmente seguro (senha protegida com bcrypt).'
-    );
+  const handleGoogleAuth = async () => {
+    setError(null);
+    setBusy(true);
+    try {
+      const { signInWithGoogle } = await import('../services/googleAuthService');
+      const user = await signInWithGoogle();
+      onAuthSuccess({ id: user.id, email: user.email, name: user.name, country: user.country });
+    } catch (err: any) {
+      const msg = String(err?.message || '');
+      if (msg.includes('closed') || msg.includes('dismissed') || msg.includes('skipped')) {
+        // Usuário fechou o popup — não é erro
+        setError(null);
+      } else {
+        setError(msg || 'Não foi possível entrar com Google.');
+      }
+    } finally {
+      setBusy(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

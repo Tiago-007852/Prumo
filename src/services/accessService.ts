@@ -27,6 +27,18 @@ export async function fetchAccess(): Promise<AccessInfo | null> {
   }
 }
 
+/** Lê a flag isAdmin do /me (mostrar a tab Admin no Navigation). */
+export async function fetchIsAdmin(): Promise<boolean> {
+  try {
+    const res = await fetch('/api/auth/me', { credentials: 'same-origin' });
+    if (!res.ok) return false;
+    const data = await res.json();
+    return Boolean(data?.isAdmin);
+  } catch {
+    return false;
+  }
+}
+
 async function postSyncAction(body: Record<string, unknown>): Promise<{ ok: boolean; error?: string; configured?: boolean; accessUntil?: string }> {
   const res = await fetch('/api/sync', {
     method: 'POST',

@@ -348,8 +348,8 @@ export const SalesFunnelView: React.FC<SalesFunnelViewProps> = ({
                     <input
                       value={code}
                       onChange={(e) => setCode(e.target.value)}
-                      placeholder="Código de ativação"
-                      className="flex-1 px-3 py-2.5 text-sm rounded-lg border border-[var(--line)] bg-[var(--surface-2)] text-[var(--text)] focus:outline-none focus:border-[var(--accent)]"
+                      placeholder="PRUMO-XXXX-XXXX-XXXX"
+                      className="flex-1 px-3 py-2.5 text-sm rounded-lg border border-[var(--line)] bg-[var(--surface-2)] text-[var(--text)] focus:outline-none focus:border-[var(--accent)] uppercase"
                     />
                     <button
                       onClick={handleActivateCode}
@@ -360,6 +360,9 @@ export const SalesFunnelView: React.FC<SalesFunnelViewProps> = ({
                       Ativar
                     </button>
                   </div>
+                  <p className="text-[11px] text-[var(--text-dim)]">
+                    Cada código funciona uma única vez e garante 31 dias de acesso.
+                  </p>
                 </div>
               ) : (
                 <button

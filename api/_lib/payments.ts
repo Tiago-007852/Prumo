@@ -21,7 +21,12 @@
  */
 
 import { getSql, ensureSchema } from './db';
-import { isValidCheckoutSessionId, evaluateAccess } from '../../src/services/accessRules';
+import {
+  isValidCheckoutSessionId,
+  evaluateAccess,
+  normalizeActivationCode,
+  isValidActivationCodeFormat,
+} from '../../src/services/accessRules';
 
 export { isValidCheckoutSessionId, evaluateAccess };
 
@@ -254,25 +259,131 @@ export function ensurePaymentsSchema(): Promise<void> {
   return _paymentsSchemaReady;
 }
 
+/* ─── Códigos de ativação single-use (Fase 5) ───
+ * Tabela activation_codes: códigos PRUMO-XXXX-XXXX-XXXX gerados pelo
+ * scripts/generate-codes.mjs, de utilização única (claim atômico) — ideal
+ * para vendas manuais em Angola e revendedores. O ACCESS_CODE do env continua
+ * a funcionar como fallback (código universal) quando definido.
+ */
+
+export interface ActivationCodeRow {
+  code: string;
+  days: number;
+  note: string | null;
+  status: 'novo' | 'usado';
+  used_by: string | null;
+  used_at: string | null;
+  created_at: string;
+}
+
+/** Migração idempotente da tabela de códigos (cacheada por instância). */
+let _codesSchemaReady: Promise<void> | null = null;
+
+export function ensureCodesSchema(): Promise<void> {
+  if (!_codesSchemaReady) {
+    _codesSchemaReady = (async () => {
+      const sql = getSql();
+      await sql`
+        CREATE TABLE IF NOT EXISTS activation_codes (
+          code       TEXT PRIMARY KEY,
+          days       INTEGER NOT NULL DEFAULT 31,
+          note       TEXT,
+          status     TEXT NOT NULL DEFAULT 'novo',
+          used_by    TEXT REFERENCES users(id) ON DELETE SET NULL,
+          used_at    TIMESTAMPTZ,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `;
+    })().catch((err) => {
+      _codesSchemaReady = null;
+      throw err;
+    });
+  }
+  return _codesSchemaReady;
+}
+
 /**
- * Ativação manual (modo dev/vendas diretas): valida um código de ativação
- * simples — ACCESS_CODE do env, se definido — e estende o acesso em 31 dias.
- * Sem STRIPE no servidor, é o caminho de fallback da oferta.
+ * Ativação por código de utilização única (com fallback ao ACCESS_CODE do
+ * env, código universal, para compatibilidade com o modo de arranque).
+ * Claim atômico: UPDATE ... WHERE status='novo' — duas pessoas a usar o
+ * mesmo código ao mesmo tempo só uma consegue.
  */
 export async function activateWithCode(userId: string, code: string): Promise<string> {
+  const normalized = normalizeActivationCode(code);
+  await ensureSchema();
+  await ensureCodesSchema();
+  const sql = getSql();
+
+  // 1. Código single-use da tabela
+  if (isValidActivationCodeFormat(normalized)) {
+    const found = await sql`SELECT code, days, status FROM activation_codes WHERE code = ${normalized} LIMIT 1`;
+    if (found.length > 0) {
+      const row = found[0] as { code: string; days: number; status: string };
+      if (row.status !== 'novo') {
+        throw new Error('Este código já foi utilizado');
+      }
+      // Claim atômico: só passa se ainda estiver 'novo'
+      const claimed = await sql`
+        UPDATE activation_codes
+        SET status = 'usado', used_by = ${userId}, used_at = now()
+        WHERE code = ${normalized} AND status = 'novo'
+        RETURNING days
+      `;
+      if (claimed.length === 0) {
+        throw new Error('Este código já foi utilizado');
+      }
+      const days = Number((claimed[0] as { days: number }).days) || 31;
+      const singleUseUntil = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
+      await grantAccess(userId, {
+        accessUntil: singleUseUntil,
+        stripeCustomerId: null,
+        stripeSubscriptionId: null,
+        lastSessionId: `code_${normalized}`,
+      });
+      return singleUseUntil;
+    }
+    // Formato certo mas não existe na tabela → cai no fallback (abaixo)
+  }
+
+  // 2. Fallback: código universal do env (modo de arranque)
   const expected = process.env.ACCESS_CODE;
   if (!expected) {
-    throw Object.assign(new Error('Ativação por código indisponível'), { code: 'not_configured' });
-  }
-  if (String(code || '').trim() !== expected) {
     throw new Error('Código de ativação inválido');
   }
-  const accessUntil = new Date(Date.now() + 31 * 24 * 60 * 60 * 1000).toISOString();
+  if (normalized !== normalizeActivationCode(expected)) {
+    throw new Error('Código de ativação inválido');
+  }
+  const fallbackUntil = new Date(Date.now() + 31 * 24 * 60 * 60 * 1000).toISOString();
   await grantAccess(userId, {
-    accessUntil,
+    accessUntil: fallbackUntil,
     stripeCustomerId: null,
     stripeSubscriptionId: null,
     lastSessionId: `manual_${Date.now()}`,
   });
-  return accessUntil;
+  return fallbackUntil;
+}
+
+/** Lista códigos para o script de gestão (mais recentes primeiro). */
+export async function listActivationCodes(limit = 50): Promise<ActivationCodeRow[]> {
+  await ensureCodesSchema();
+  const sql = getSql();
+  const rows = await sql`
+    SELECT code, days, note, status, used_by, used_at, created_at
+    FROM activation_codes ORDER BY created_at DESC LIMIT ${limit}
+  `;
+  return rows as unknown as ActivationCodeRow[];
+}
+
+/** Insere um lote de códigos (usado pelo scripts/generate-codes.mjs). */
+export async function insertActivationCodes(codes: Array<{ code: string; days: number; note?: string }>): Promise<void> {
+  await ensureSchema();
+  await ensureCodesSchema();
+  const sql = getSql();
+  for (const c of codes) {
+    await sql`
+      INSERT INTO activation_codes (code, days, note)
+      VALUES (${c.code}, ${c.days}, ${c.note || null})
+      ON CONFLICT (code) DO NOTHING
+    `;
+  }
 }
