@@ -2,8 +2,13 @@
  * Cliente do login com Google (Fase 6) — frontend.
  * Carrega o script oficial GIS e envia o ID token ao servidor
  * (POST /api/sync { action:'google_auth' }), que valida no Google e cria a sessão.
+ *
+ * Robustez: escuta as notificações do prompt (not_displayed/skipped/dismissed)
+ * para traduzir falhas silenciosas em mensagens úteis — o bug "fica em
+ * Aguarde para sempre" era exatamente a falta desses listeners.
+ * Timeout de 12s: se nada acontecer (ex.: script bloqueado), destrava o botão.
  */
-import { extractGoogleIdToken } from './googleAuthRules';
+import { extractGoogleIdToken, humanizeGooglePromptIssue } from './googleAuthRules';
 
 declare global {
   interface Window {
@@ -17,12 +22,24 @@ declare global {
             cancel_on_tap_outside?: boolean;
           }): void;
           renderButton(parent: HTMLElement, options: Record<string, unknown>): void;
-          prompt(): void;
+          prompt(listener?: (notification: GooglePromptNotification) => void): void;
         };
       };
     };
   }
 }
+
+/** Notificação do GIS sobre o ciclo de vida do prompt One Tap. */
+interface GooglePromptNotification {
+  isNotDisplayed(): boolean;
+  isSkippedMoment(): boolean;
+  isDismissedMoment(): boolean;
+  getNotDisplayedReason(): string;
+  getSkippedReason(): string;
+  getDismissedReason(): string;
+}
+
+const PROMPT_TIMEOUT_MS = 12_000;
 
 /** Busca o client_id publicável no /api/health. */
 export async function fetchGoogleClientId(): Promise<string | null> {
@@ -57,33 +74,81 @@ function loadGisScript(): Promise<void> {
   });
 }
 
-let promptReady: ((cred: string) => void) | null = null;
+/** Estamos numa iframe (preview do Freebuff/Studio)? */
+function isInIframe(): boolean {
+  try {
+    return typeof window !== 'undefined' && window.self !== window.top;
+  } catch {
+    return true; // cross-origin access = iframe
+  }
+}
 
-/** Abre o popup do Google e devolve o ID token. */
+/**
+ * Abre o popup do Google e devolve o ID token.
+ * Rejeita com mensagem humana (pt) quando o prompt não aparece ou é fechado.
+ */
 export async function promptGoogleSignIn(clientId: string): Promise<string> {
   await loadGisScript();
   const gis = window.google?.accounts?.id;
-  if (!gis) throw new Error('Google Identity Services indisponível');
+  if (!gis) throw new Error('Google Identity Services indisponível (script bloqueado?)');
+
+  const inIframe = isInIframe();
 
   return new Promise<string>((resolve, reject) => {
-    promptReady = (cred) => {
-      promptReady = null;
+    let settled = false;
+    const finishResolve = (cred: string) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
       resolve(cred);
     };
+    const finishReject = (err: Error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      reject(err);
+    };
+
+    // Destrava o botão se nada acontecer (popup bloqueado, script travado…)
+    const timer = setTimeout(() => {
+      finishReject(new Error(
+        inIframe
+          ? 'O Google não conseguiu abrir o login dentro desta janela incorporada. Abre o Prumo numa aba própria do navegador e tenta de novo.'
+          : 'O Google demorou demasiado a responder. Tenta de novo em instantes ou usa email e senha.'
+      ));
+    }, PROMPT_TIMEOUT_MS);
+
     gis.initialize({
       client_id: clientId,
       callback: (response) => {
         const token = extractGoogleIdToken(response);
-        if (token && promptReady) {
-          promptReady(token);
+        if (token) {
+          finishResolve(token);
         } else {
-          promptReady = null;
-          reject(new Error('Resposta do Google inválida'));
+          finishReject(new Error('Resposta do Google inválida'));
         }
       },
       cancel_on_tap_outside: true,
     });
-    gis.prompt();
+
+    // O listener de momentos passa-se como argumento de prompt() — é assim que
+    // ficamos a saber POR QUE o prompt não apareceu (docs oficiais GIS).
+    gis.prompt((notification) => {
+      if (settled) return;
+      if (notification.isNotDisplayed()) {
+        const { message } = humanizeGooglePromptIssue('not_displayed', notification.getNotDisplayedReason(), inIframe);
+        finishReject(new Error(message || 'O Google não conseguiu mostrar a janela de login.'));
+      } else if (notification.isSkippedMoment()) {
+        const { message, silent } = humanizeGooglePromptIssue('skipped', notification.getSkippedReason(), inIframe);
+        if (!silent) finishReject(new Error(message || 'Login rápido do Google indisponível agora.'));
+        // silent (usuário cancelou): não é erro
+        else finishReject(new Error('GOOGLE_SILENT_CANCEL'));
+      } else if (notification.isDismissedMoment()) {
+        const { message, silent } = humanizeGooglePromptIssue('dismissed', notification.getDismissedReason(), inIframe);
+        if (!silent) finishReject(new Error(message || 'Login cancelado.'));
+        else finishReject(new Error('GOOGLE_SILENT_CANCEL'));
+      }
+    });
   });
 }
 

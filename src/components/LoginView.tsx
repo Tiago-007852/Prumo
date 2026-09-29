@@ -68,7 +68,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onAuthSuccess, onRegistere
       onAuthSuccess({ id: user.id, email: user.email, name: user.name, country: user.country });
     } catch (err: any) {
       const msg = String(err?.message || '');
-      if (msg.includes('closed') || msg.includes('dismissed') || msg.includes('skipped')) {
+      if (msg === 'GOOGLE_SILENT_CANCEL' || msg.includes('closed') || msg.includes('dismissed')) {
         // Usuário fechou o popup — não é erro
         setError(null);
       } else {

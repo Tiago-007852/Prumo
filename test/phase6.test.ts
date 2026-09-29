@@ -3,7 +3,11 @@
  * Cobertos: extração do ID token do callback, formato JWT e client_id plausível.
  */
 
-import { extractGoogleIdToken, isPlausibleGoogleClientId } from '../src/services/googleAuthRules';
+import {
+  extractGoogleIdToken,
+  isPlausibleGoogleClientId,
+  humanizeGooglePromptIssue,
+} from '../src/services/googleAuthRules';
 
 let passed = 0;
 let failed = 0;
@@ -44,6 +48,36 @@ assert(!isPlausibleGoogleClientId('https://accounts.google.com'), 'URL não é c
 assert(!isPlausibleGoogleClientId(''), 'vazio → não plausível');
 assert(!isPlausibleGoogleClientId(null), 'null → não plausível');
 assert(!isPlausibleGoogleClientId(undefined), 'undefined → não plausível');
+
+// ─── humanizeGooglePromptIssue (diagnóstico do One Tap) ───
+
+assert(humanizeGooglePromptIssue('dismissed', 'qualquer', false).silent === true, 'prompt fechado → silencioso');
+assert(
+  humanizeGooglePromptIssue('skipped', 'user_cancel', false).silent === true,
+  'skip por user_cancel → silencioso'
+);
+assert(
+  humanizeGooglePromptIssue('not_displayed', 'third_party_cookies_blocked', false).message?.includes(
+    'cookies'
+  ) === true,
+  'cookies de 3º bloqueados → mensagem fala de cookies'
+);
+assert(
+  humanizeGooglePromptIssue('not_displayed', 'third_party_cookies_blocked', true).message?.includes(
+    'incorporada'
+  ) === true,
+  'em iframe → mensagem menciona janela incorporada'
+);
+assert(
+  humanizeGooglePromptIssue('not_displayed', 'opt_out_or_no_session', false).message?.includes(
+    'sessão Google'
+  ) === true,
+  'sem sessão Google → mensagem orienta'
+);
+assert(
+  humanizeGooglePromptIssue('not_displayed', 'motivo_desconhecido', false).message !== null,
+  'motivo desconhecido → mensagem genérica útil'
+);
 
 // ─── Resumo ───
 

@@ -25,3 +25,47 @@ export function extractGoogleIdToken(response: unknown): string | null {
 export function isPlausibleGoogleClientId(clientId: unknown): boolean {
   return typeof clientId === 'string' && /^[0-9A-Za-z-]+\.apps\.googleusercontent\.com$/.test(clientId);
 }
+
+/**
+ * Traduz o motivo de o prompt One Tap não ter aparecido (API de notificação
+ * do GIS) numa mensagem útil em português. silent=true = não mostrar erro
+ * (usuário apenas fechou/skip benigno).
+ */
+export function humanizeGooglePromptIssue(
+  kind: 'not_displayed' | 'skipped' | 'dismissed',
+  reason: string | null | undefined,
+  inIframe: boolean
+): { message: string | null; silent: boolean } {
+  const r = String(reason || '');
+
+  // Usuário fechou o prompt — nunca é erro visível
+  if (kind === 'dismissed') return { message: null, silent: true };
+  if (kind === 'skipped' && (r === 'user_cancel' || r === 'user_closed' || r === 'tap_outside')) {
+    return { message: null, silent: true };
+  }
+
+  const iframeHint = inIframe
+    ? ' Nota: estás numa janela incorporada (preview) — abre o Prumo numa aba própria para o Google permitir o login.'
+    : '';
+
+  switch (r) {
+    case 'third_party_cookies_blocked':
+      return {
+        message: `O navegador bloqueou os cookies do Google, necessários para o login rápido.${iframeHint} Alternativa: entrar com email e senha.`,
+        silent: false,
+      };
+    case 'opt_out_or_no_session':
+      return { message: `Não há sessão Google ativa neste navegador.${iframeHint}`, silent: false };
+    case 'suppressed_by_user':
+      return {
+        message: 'O Google ocultou o login rápido porque foi fechado anteriormente. Tenta de novo em instantes ou usa email e senha.',
+        silent: false,
+      };
+    case 'browser_not_supported':
+      return { message: 'Este navegador não suporta o login rápido do Google — usa Chrome/Edge ou email e senha.', silent: false };
+    case 'insecure_transport':
+      return { message: 'O login do Google exige HTTPS.', silent: false };
+    default:
+      return { message: `O Google não conseguiu mostrar a janela de login.${iframeHint}`, silent: false };
+  }
+}
