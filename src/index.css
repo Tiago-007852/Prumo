@@ -76,6 +76,35 @@ body {
   font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
+/* ─── CTA dourado com varredura de luz no hover (Prumo) ─── */
+@keyframes prumo-shine {
+  from {
+    transform: translateX(-140%) skewX(-18deg);
+  }
+  to {
+    transform: translateX(240%) skewX(-18deg);
+  }
+}
+
+.cta-shine {
+  position: relative;
+  overflow: hidden;
+}
+
+.cta-shine::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 38%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  transform: translateX(-140%) skewX(-18deg);
+}
+
+.cta-shine:hover:not(:disabled)::after {
+  animation: prumo-shine 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 /* ─── Animações de entrada (scroll reveal via IntersectionObserver) ─── */
 @keyframes prumo-rise {
   from {

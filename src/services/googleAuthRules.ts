@@ -55,7 +55,14 @@ export function humanizeGooglePromptIssue(
         silent: false,
       };
     case 'opt_out_or_no_session':
-      return { message: `Não há sessão Google ativa neste navegador.${iframeHint}`, silent: false };
+      return { message: `Não há sessão Google ativa neste navegador. Entra no Gmail nesta aba e tenta de novo.${iframeHint}`, silent: false };
+    case 'unregistered_origin':
+      return {
+        message: `Este site ainda não está autorizado nas configurações do Google Cloud. No Google Cloud → APIs & Services → Credentials → teu OAuth client → Authorized JavaScript origins, adiciona exatamente o endereço atual (${typeof window !== 'undefined' && typeof location !== 'undefined' ? location.origin : 'https://prumo-premium.vercel.app'}) e aguarda alguns minutos.`,
+        silent: false,
+      };
+    case 'invalid_parameter':
+      return { message: 'O Google rejeitou a configuração do login (client_id ou parâmetro inválido). Verifica o GOOGLE_CLIENT_ID configurado no servidor.', silent: false };
     case 'suppressed_by_user':
       return {
         message: 'O Google ocultou o login rápido porque foi fechado anteriormente. Tenta de novo em instantes ou usa email e senha.',
@@ -64,8 +71,10 @@ export function humanizeGooglePromptIssue(
     case 'browser_not_supported':
       return { message: 'Este navegador não suporta o login rápido do Google — usa Chrome/Edge ou email e senha.', silent: false };
     case 'insecure_transport':
+    case 'secure_context_required':
       return { message: 'O login do Google exige HTTPS.', silent: false };
     default:
-      return { message: `O Google não conseguiu mostrar a janela de login.${iframeHint}`, silent: false };
+      // Motivo não mapeado: mostrar o código cru para diagnóstico imediato.
+      return { message: `O Google não conseguiu mostrar a janela de login (motivo: ${r || 'desconhecido'}).${iframeHint} Alternativa: entrar com email e senha.`, silent: false };
   }
 }
