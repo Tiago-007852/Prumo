@@ -180,8 +180,17 @@ function runTests() {
 
   // ── Teste 6: deriveNotifications — lembretes de recorrência + lidas persistidas ──
   const alerts: Alert[] = [];
-  const rules: RecurrenceRule[] = [monthlyRule];
-  // Hoje = 28/set/2026: próxima ocorrência 05/out → 7 dias → dentro da janela
+  // deriveNotifications usa a data real: a regra é ancorada em daqui a 3 dias,
+  // para o lembrete cair sempre na janela de 7 dias (antes era "hoje = set/2026").
+  const soon = new Date();
+  soon.setDate(soon.getDate() + 3);
+  const soonRule: RecurrenceRule = {
+    ...monthlyRule,
+    id: 'r-soon',
+    dayOfMonth: soon.getDate(),
+    startDate: '2025-01-01',
+  };
+  const rules: RecurrenceRule[] = [soonRule];
   const derived = deriveNotifications({
     userId: 'user-1',
     country: 'BR',

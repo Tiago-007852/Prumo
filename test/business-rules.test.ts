@@ -25,6 +25,17 @@ function assert(condition: boolean, message: string) {
   console.log(`✅ Passed: ${message}`);
 }
 
+/**
+ * Data (YYYY-MM-DD) dentro do MÊS CORRENTE. As regras de totais e de orçamento
+ * olham o mês atual por padrão, por isso as fixtures não podem ter datas fixas
+ * (antes eram '2026-09-*', o que quebrava a suíte a partir de outubro).
+ */
+function dayInCurrentMonth(day: number): string {
+  const now = new Date();
+  const d = new Date(now.getFullYear(), now.getMonth(), day);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function runTests() {
   console.log('\n--- 🧪 Iniciando Testes de Regras de Negócio do Prumo ---\n');
 
@@ -67,8 +78,8 @@ function runTests() {
       category: 'Salário / Honorários',
       description: 'Honorários Projeto UX',
       source: 'manual',
-      occurredAt: '2026-09-05',
-      createdAt: '2026-09-05',
+      occurredAt: dayInCurrentMonth(5),
+      createdAt: dayInCurrentMonth(5),
     },
     {
       id: 't-2',
@@ -78,8 +89,8 @@ function runTests() {
       category: 'Moradia',
       description: 'Aluguel',
       source: 'manual',
-      occurredAt: '2026-09-10',
-      createdAt: '2026-09-10',
+      occurredAt: dayInCurrentMonth(10),
+      createdAt: dayInCurrentMonth(10),
     },
     {
       id: 't-3',
@@ -89,8 +100,8 @@ function runTests() {
       category: 'Alimentação',
       description: 'Supermercado',
       source: 'manual',
-      occurredAt: '2026-09-15',
-      createdAt: '2026-09-15',
+      occurredAt: dayInCurrentMonth(15),
+      createdAt: dayInCurrentMonth(15),
     },
   ];
 
