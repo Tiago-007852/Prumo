@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import {
-  Compass,
   Sparkles,
   Lock,
   Mail,
@@ -17,6 +16,9 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { PlumbLine } from './PlumbLine';
+// Wallpaper animado (pasta /wallpaper) — versão lenta (500 ms/frame, loop de 6 s),
+// copiada pelo Vite para dist/assets no build.
+import wallpaper from '../../wallpaper/finance_growth_v4_slow.gif';
 
 interface LoginViewProps {
   onAuthSuccess: (user: { id: string; email: string; name: string; country: 'BR' | 'AO' }) => void;
@@ -130,17 +132,23 @@ export const LoginView: React.FC<LoginViewProps> = ({ onAuthSuccess, onRegistere
       />
 
       {/* ── Coluna esquerda: identidade (~58%) ── */}
-      <section className="relative lg:w-[58%] flex-1 flex flex-col p-8 sm:p-12 lg:p-16 overflow-hidden bg-[var(--surface-2)] border-b md:border-b-0 md:border-r border-[var(--line)]">
-        {/* Fundo: auroras suaves (sem banding) */}
-        <div
-          aria-hidden="true"
-          className="absolute inset-0 pointer-events-none opacity-70"
-          style={{
-            background:
-              'radial-gradient(760px 420px at 16% -8%, var(--accent-soft) 0%, transparent 62%), radial-gradient(640px 420px at 96% 108%, var(--accent-soft) 0%, transparent 58%)',
-          }}
-        />
-
+      <section
+        className="relative lg:w-[58%] flex-1 flex flex-col p-8 sm:p-12 lg:p-16 overflow-x-hidden md:overflow-y-auto border-b md:border-b-0 md:border-r border-[var(--line)]"
+        style={{
+          /* Pilha de fundos (topo → base): auras douradas, scrim do tema e o wallpaper GIF.
+             No md+ a coluna rola internamente (overflow-y:auto); como o fundo é do próprio
+             elemento (background-attachment: scroll), ele fica parado enquanto o conteúdo
+             restante — recursos e aviso LGPD — desliza por cima. */
+          backgroundImage: [
+            'radial-gradient(760px 420px at 16% -8%, color-mix(in srgb, var(--accent-soft) 70%, transparent) 0%, transparent 62%), radial-gradient(640px 420px at 96% 108%, color-mix(in srgb, var(--accent-soft) 70%, transparent) 0%, transparent 58%)',
+            'linear-gradient(100deg, color-mix(in srgb, var(--bg) 92%, transparent) 0%, color-mix(in srgb, var(--bg) 84%, transparent) 55%, color-mix(in srgb, var(--bg) 70%, transparent) 100%)',
+            `url(${wallpaper})`,
+          ].join(', '),
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
+        }}
+      >
         {/* Prumo animado — ancorado no canto, sem invadir o texto */}
         <PlumbLine
           height={340}
@@ -156,12 +164,15 @@ export const LoginView: React.FC<LoginViewProps> = ({ onAuthSuccess, onRegistere
           transition={{ duration: 0.6, ease: EASE }}
         >
           <div className="flex items-center gap-3">
-            <div
-              className="w-11 h-11 rounded-xl bg-[var(--accent)] text-[color:var(--bg)] flex items-center justify-center"
+            <img
+              src="/favicon.svg"
+              alt=""
+              aria-hidden="true"
+              width={44}
+              height={44}
+              className="w-11 h-11 rounded-xl shrink-0"
               style={{ boxShadow: '0 0 24px var(--gold-glow)' }}
-            >
-              <Compass className="w-6 h-6" />
-            </div>
+            />
             <div>
               <div className="font-serif-display font-semibold text-2xl tracking-tight leading-none">Prumo</div>
               <div className="text-[11px] text-[var(--text-dim)] mt-1">Copiloto Financeiro · BR &amp; AO</div>
