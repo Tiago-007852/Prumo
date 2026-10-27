@@ -1,0 +1,732 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   PRUMO — Landing "liquid glass" (fonte da verdade: docs/reference-landing/Prumo.css)
+
+   Regras de convivência com o resto do app:
+   - TODO o ficheiro está escopado em `.prumo-landing` (tokens, cores, tipografia,
+     fundo, overflow). Os nomes de classe (.glass, .card, .btn, .field, .seg,
+     .chip…) mantêm-se iguais aos da referência porque não podem vazar: nenhuma
+     regra existe fora da raiz da landing.
+   - Tema escuro fixo: `color-scheme: dark`, independente do tema do app.
+   - Nenhum valor visual foi alterado em relação à referência. Só se acrescentou
+     o prefixo -webkit- em mask-image (Safari) e o seletor `.prumo-landing`, além
+     do bloco `.error` (feedback de falha de login/cadastro, exigido pela lógica
+     existente — só aparece quando há erro).
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.prumo-landing {
+  /* tokens da referência (:root → .prumo-landing) */
+  color-scheme: dark;
+  --bg: #07090f;
+  --ink: #f5f2ea;
+  --mute: #b4b9c6;
+  --dim: #8b91a1;
+  --gold: #e3b93c;
+  --gold2: #f6dc8a;
+  --green: #5fd39a;
+  --glass: rgba(255, 255, 255, 0.07);
+  --glass2: rgba(255, 255, 255, 0.11);
+  --edge: rgba(255, 255, 255, 0.22);
+  --edge2: rgba(255, 255, 255, 0.06);
+  --serif: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  /* regras que na referência estavam em html/body */
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--ink);
+  font: 400 15px/1.5 var(--sans);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  scroll-padding-top: env(safe-area-inset-top, 0px);
+}
+.prumo-landing *,
+.prumo-landing *::before,
+.prumo-landing *::after {
+  box-sizing: inherit;
+}
+
+/* fundo vivo */
+.prumo-landing .bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.prumo-landing .orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(70px);
+  opacity: 0.55;
+  animation: drift 22s ease-in-out infinite alternate;
+}
+.prumo-landing .o1 {
+  width: 520px;
+  height: 520px;
+  background: radial-gradient(circle, #e3b93c, transparent 70%);
+  top: -120px;
+  left: -100px;
+}
+.prumo-landing .o2 {
+  width: 480px;
+  height: 480px;
+  background: radial-gradient(circle, #1f6f5c, transparent 70%);
+  bottom: -140px;
+  left: 32%;
+  animation-delay: -8s;
+}
+.prumo-landing .o3 {
+  width: 420px;
+  height: 420px;
+  background: radial-gradient(circle, #5a3bb0, transparent 70%);
+  top: 20%;
+  right: -120px;
+  opacity: 0.4;
+  animation-delay: -14s;
+}
+.prumo-landing .grid {
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 56px 56px;
+  -webkit-mask-image: radial-gradient(ellipse at 35% 40%, #000 20%, transparent 75%);
+  mask-image: radial-gradient(ellipse at 35% 40%, #000 20%, transparent 75%);
+}
+@keyframes drift {
+  to {
+    transform: translate(70px, 50px) scale(1.12);
+  }
+}
+
+/* vidro */
+.prumo-landing .glass {
+  position: relative;
+  background: linear-gradient(135deg, var(--glass2), var(--glass));
+  border: 1px solid var(--edge2);
+  border-radius: 28px;
+  -webkit-backdrop-filter: blur(26px) saturate(180%);
+  backdrop-filter: blur(26px) saturate(180%);
+  box-shadow: inset 0 1px 0 var(--edge), inset 0 -1px 0 rgba(255, 255, 255, 0.05),
+    0 24px 60px -20px rgba(0, 0, 0, 0.6);
+}
+.prumo-landing .glass::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  pointer-events: none;
+  background: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.5),
+    rgba(255, 255, 255, 0) 35%,
+    rgba(255, 255, 255, 0) 65%,
+    rgba(227, 185, 60, 0.35)
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+
+.prumo-landing .wrap {
+  position: relative;
+  z-index: 1;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 36px 28px 48px;
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 48px;
+  align-items: start;
+}
+
+/* esquerda */
+.prumo-landing .top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 34px;
+}
+.prumo-landing .brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.prumo-landing .logo {
+  width: 46px;
+  height: 46px;
+  border-radius: 15px;
+  display: grid;
+  place-items: center;
+  color: #2a2008;
+  background: linear-gradient(145deg, var(--gold2), var(--gold));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 8px 24px -6px rgba(227, 185, 60, 0.6);
+}
+.prumo-landing .brand b {
+  font: 700 24px/1 var(--serif);
+  display: block;
+}
+.prumo-landing .brand small {
+  color: var(--dim);
+  font-size: 12px;
+}
+.prumo-landing .pill {
+  padding: 7px 14px;
+  border-radius: 99px;
+  font-size: 12px;
+  color: var(--mute);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.prumo-landing .pill i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 10px var(--green);
+}
+.prumo-landing h1 {
+  font: 700 clamp(40px, 5.4vw, 66px)/1.02 var(--serif);
+  letter-spacing: -0.02em;
+  margin: 0 0 18px;
+  max-width: 11em;
+}
+.prumo-landing h1 em {
+  font-style: normal;
+  background: linear-gradient(120deg, var(--gold2), var(--gold) 60%, #c9961c);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.prumo-landing .lead {
+  color: var(--mute);
+  font-size: 17px;
+  max-width: 34em;
+  margin: 0 0 28px;
+}
+.prumo-landing .lead b {
+  color: var(--ink);
+  font-weight: 600;
+}
+.prumo-landing .stage {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 26px;
+  align-items: center;
+  margin-bottom: 26px;
+}
+
+/* telefone */
+.prumo-landing .phone {
+  width: 250px;
+  padding: 10px;
+  border-radius: 44px;
+  transform: rotate(-3deg);
+  animation: float 7s ease-in-out infinite alternate;
+}
+@keyframes float {
+  to {
+    transform: rotate(-1deg) translateY(-10px);
+  }
+}
+.prumo-landing .screen {
+  border-radius: 34px;
+  background: linear-gradient(180deg, #121826, #0a0e18);
+  padding: 18px 16px 16px;
+  min-height: 430px;
+  position: relative;
+  overflow: hidden;
+}
+.prumo-landing .screen::after {
+  content: '';
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  width: 78px;
+  height: 20px;
+  border-radius: 12px;
+  background: #000;
+  transform: translateX(-50%);
+}
+.prumo-landing .sh {
+  font-size: 11px;
+  color: var(--dim);
+  margin-top: 22px;
+  display: flex;
+  justify-content: space-between;
+}
+.prumo-landing .bal {
+  font: 700 30px/1.1 var(--serif);
+  margin: 4px 0 2px;
+}
+.prumo-landing .up {
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 500;
+}
+.prumo-landing .chart {
+  margin: 14px -4px 8px;
+  width: calc(100% + 8px);
+  height: 92px;
+}
+.prumo-landing .mini {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.prumo-landing .mini div {
+  padding: 9px 10px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--edge2);
+  font-size: 11px;
+  color: var(--dim);
+}
+.prumo-landing .mini b {
+  display: block;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+.prumo-landing .chat {
+  padding: 10px 12px;
+  border-radius: 16px 16px 16px 5px;
+  background: linear-gradient(135deg, rgba(227, 185, 60, 0.28), rgba(227, 185, 60, 0.1));
+  border: 1px solid rgba(227, 185, 60, 0.35);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+.prumo-landing .chat span {
+  display: block;
+  color: var(--gold2);
+  font-weight: 600;
+  margin-bottom: 3px;
+  font-size: 10.5px;
+}
+.prumo-landing .ask {
+  margin-left: auto;
+  width: max-content;
+  max-width: 90%;
+  margin-bottom: 8px;
+  padding: 7px 11px;
+  border-radius: 14px 14px 5px 14px;
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 11.5px;
+}
+
+/* destaques */
+.prumo-landing .feat {
+  display: grid;
+  gap: 14px;
+}
+.prumo-landing .card {
+  padding: 18px 18px 16px;
+  border-radius: 24px;
+}
+.prumo-landing .card h3 {
+  margin: 10px 0 4px;
+  font: 600 15.5px/1.3 var(--sans);
+}
+.prumo-landing .card p {
+  margin: 0;
+  color: var(--mute);
+  font-size: 13px;
+}
+.prumo-landing .ico {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(145deg, rgba(246, 220, 138, 0.35), rgba(227, 185, 60, 0.12));
+  border: 1px solid rgba(227, 185, 60, 0.4);
+  color: var(--gold2);
+}
+.prumo-landing .flags {
+  display: flex;
+  gap: 6px;
+  font-size: 22px;
+  margin-top: 2px;
+}
+.prumo-landing .row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.prumo-landing .chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border-radius: 99px;
+  font-size: 13px;
+  color: var(--mute);
+}
+.prumo-landing .chip svg {
+  color: var(--gold2);
+  flex: none;
+}
+
+/* direita */
+.prumo-landing .auth {
+  padding: 30px 28px 26px;
+  border-radius: 34px;
+  position: sticky;
+  top: 28px;
+}
+.prumo-landing .seg {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 4px;
+  border-radius: 99px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--edge2);
+  margin-bottom: 24px;
+  position: relative;
+}
+.prumo-landing .seg button {
+  position: relative;
+  z-index: 1;
+  border: 0;
+  background: none;
+  color: var(--dim);
+  font: 500 14px var(--sans);
+  padding: 10px;
+  border-radius: 99px;
+  cursor: pointer;
+  transition: color 0.25s;
+}
+.prumo-landing .seg button[aria-selected='true'] {
+  color: var(--ink);
+}
+.prumo-landing .knob {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc(50% - 4px);
+  border-radius: 99px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.08));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 4px 14px rgba(0, 0, 0, 0.35);
+  transition: transform 0.35s cubic-bezier(0.3, 1.3, 0.5, 1);
+}
+.prumo-landing .seg[data-t='login'] .knob {
+  transform: translateX(100%);
+}
+.prumo-landing h2 {
+  font: 700 27px/1.15 var(--serif);
+  margin: 0 0 4px;
+}
+.prumo-landing .sub {
+  color: var(--mute);
+  margin: 0 0 20px;
+  font-size: 14px;
+}
+.prumo-landing label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--mute);
+  margin: 14px 0 6px;
+}
+.prumo-landing .field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  height: 48px;
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.26);
+  border: 1px solid var(--edge2);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.25);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.prumo-landing .field:focus-within {
+  border-color: rgba(227, 185, 60, 0.7);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.25), 0 0 0 4px rgba(227, 185, 60, 0.15);
+}
+.prumo-landing .field svg {
+  color: var(--dim);
+  flex: none;
+}
+.prumo-landing .field input {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: 0;
+  outline: 0;
+  color: var(--ink);
+  font: 400 15px var(--sans);
+}
+.prumo-landing .field input::placeholder {
+  color: #6f7686;
+}
+.prumo-landing .name {
+  display: block;
+}
+.prumo-landing .auth[data-t='login'] .name {
+  display: none;
+}
+.prumo-landing .btn {
+  width: 100%;
+  height: 50px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  cursor: pointer;
+  font: 600 15px var(--sans);
+  color: #2a2008;
+  background: linear-gradient(180deg, var(--gold2), var(--gold) 60%, #cf9f27);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 12px 30px -8px rgba(227, 185, 60, 0.65);
+  margin-top: 20px;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.15s;
+}
+.prumo-landing .btn:active {
+  transform: scale(0.98);
+}
+.prumo-landing .btn::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 60px;
+  left: -80px;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.7), transparent);
+  animation: shine 5s ease-in-out infinite;
+}
+@keyframes shine {
+  0%,
+  60% {
+    left: -80px;
+  }
+  100% {
+    left: 110%;
+  }
+}
+.prumo-landing .or {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--dim);
+  font-size: 12px;
+  margin: 16px 0;
+}
+.prumo-landing .or::before,
+.prumo-landing .or::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--edge2);
+}
+.prumo-landing .ghost {
+  width: 100%;
+  height: 48px;
+  border-radius: 16px;
+  cursor: pointer;
+  color: var(--ink);
+  font: 500 14.5px var(--sans);
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--edge2);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: background 0.2s;
+}
+.prumo-landing .ghost:hover {
+  background: rgba(255, 255, 255, 0.13);
+}
+.prumo-landing .demo {
+  margin-top: 10px;
+  border-color: rgba(227, 185, 60, 0.5);
+  color: var(--gold2);
+  background: linear-gradient(135deg, rgba(227, 185, 60, 0.2), rgba(227, 185, 60, 0.06));
+}
+.prumo-landing .demo:hover {
+  background: linear-gradient(135deg, rgba(227, 185, 60, 0.3), rgba(227, 185, 60, 0.12));
+}
+.prumo-landing .trust {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  color: var(--dim);
+  font-size: 12px;
+  margin-top: 18px;
+}
+.prumo-landing button:focus-visible,
+.prumo-landing a:focus-visible {
+  outline: 2px solid var(--gold2);
+  outline-offset: 3px;
+}
+
+/* erro de autenticação (lógica existente; só aparece quando há falha) */
+.prumo-landing .error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: #ffd9d9;
+  background: rgba(226, 90, 90, 0.14);
+  border: 1px solid rgba(226, 90, 90, 0.4);
+}
+.prumo-landing .error svg {
+  flex: none;
+  color: #ff9d9d;
+}
+.prumo-landing .btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+/* seletor de moeda, prova social (referência v2) */
+.prumo-landing .phonecol {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+.prumo-landing .cur {
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 99px;
+}
+.prumo-landing .cur button {
+  border: 0;
+  background: none;
+  color: var(--dim);
+  font: 500 13px var(--sans);
+  padding: 7px 14px;
+  border-radius: 99px;
+  cursor: pointer;
+  transition: color 0.25s, background 0.25s;
+}
+.prumo-landing .cur button[aria-pressed='true'] {
+  color: var(--ink);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.08));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 3px 10px rgba(0, 0, 0, 0.3);
+}
+.prumo-landing .swap {
+  animation: swap 0.45s ease;
+}
+@keyframes swap {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.prumo-landing .proof {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px 20px;
+  padding: 14px 18px;
+  border-radius: 24px;
+  margin: 0 0 26px;
+}
+.prumo-landing .avs {
+  display: flex;
+}
+.prumo-landing .avs i {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  margin-left: -9px;
+  border: 2px solid #0b0f19;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+.prumo-landing .avs i:first-child {
+  margin-left: 0;
+}
+.prumo-landing .avs i:nth-child(1) {
+  background: linear-gradient(145deg, #f6dc8a, #c9961c);
+}
+.prumo-landing .avs i:nth-child(2) {
+  background: linear-gradient(145deg, #7be0b3, #1f6f5c);
+}
+.prumo-landing .avs i:nth-child(3) {
+  background: linear-gradient(145deg, #a98bff, #5a3bb0);
+}
+.prumo-landing .avs i:nth-child(4) {
+  background: linear-gradient(145deg, #8fd0ff, #2d5fa8);
+}
+.prumo-landing .ptxt {
+  flex: 1;
+  min-width: 170px;
+  line-height: 1.3;
+}
+.prumo-landing .ptxt strong {
+  font: 700 24px/1 var(--serif);
+  color: var(--gold2);
+}
+.prumo-landing .ptxt span {
+  display: block;
+  font-size: 13px;
+  color: var(--mute);
+  margin-top: 3px;
+}
+.prumo-landing .pc {
+  display: flex;
+  gap: 10px;
+}
+.prumo-landing .pc div {
+  padding: 7px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--edge2);
+  font-size: 12px;
+  color: var(--mute);
+  text-align: center;
+}
+.prumo-landing .pc b {
+  display: block;
+  color: var(--ink);
+  font: 700 18px/1.1 var(--serif);
+}
+
+@media (max-width: 1020px) {
+  .prumo-landing .wrap {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+  .prumo-landing .auth {
+    position: relative;
+    top: 0;
+    order: -1;
+  }
+}
+@media (max-width: 620px) {
+  .prumo-landing .stage {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+  .prumo-landing .wrap {
+    padding: 22px 16px 40px;
+  }
+  .prumo-landing .pill {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .prumo-landing *,
+  .prumo-landing *::before,
+  .prumo-landing *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
