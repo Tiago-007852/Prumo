@@ -1,26 +1,22 @@
-import React, { useState } from 'react';
-import { motion } from 'motion/react';
+import React, { useEffect, useState } from 'react';
+import '../styles/prumo-landing.css';
 import {
-  Sparkles,
-  Lock,
-  Mail,
-  User as UserIcon,
-  Globe,
-  WifiOff,
-  ShieldCheck,
-  Repeat,
-  FileBarChart,
-  Eye,
-  EyeOff,
-  AlertCircle,
-  ChevronRight,
-} from 'lucide-react';
-import { PlumbLine } from './PlumbLine';
-// Wallpaper animado (pasta /wallpaper) — versão lenta (500 ms/frame, loop de 6 s),
-// copiada pelo Vite para dist/assets no build.
-import wallpaper from '../../wallpaper/finance_growth_v4_slow.gif';
+  LANDING_COMPANIES,
+  LANDING_DEFAULT_COUNTRY,
+  LANDING_PREVIEW,
+  LANDING_PREVIEW_ORDER,
+  LANDING_TOTAL_COMPANIES,
+  type LandingCountry,
+} from '../config/landing';
 
-interface LoginViewProps {
+/**
+ * Landing "liquid glass" (fonte da verdade: docs/reference-landing/Prumo.jsx + Prumo.css).
+ *
+ * A estrutura, os textos e os dados são os da referência. O que veio do login
+ * anterior é apenas a ligação à lógica já existente: cadastro, login, Google,
+ * modo demo, estados de carregamento/erro e a validação dos campos.
+ */
+interface LandingViewProps {
   onAuthSuccess: (user: { id: string; email: string; name: string; country: 'BR' | 'AO' }) => void;
   /** Chamado quando a conta acabou de ser criada (dispara o onboarding). */
   onRegistered: (user: { id: string; email: string; name: string; country: 'BR' | 'AO' }) => void;
@@ -28,50 +24,109 @@ interface LoginViewProps {
   isOnline: boolean;
 }
 
-const FEATURES = [
-  {
-    icon: Sparkles,
-    color: 'var(--accent)',
-    title: 'Copiloto IA que fala a sua língua',
-    text: 'Respostas com base no seu retrato financeiro real — e também por voz: pergunte falando.',
-  },
-  {
-    icon: Repeat,
-    color: 'var(--positive)',
-    title: 'Recorrências e parcelas no automático',
-    text: 'Aluguel, salário e assinaturas lançam sozinhos. Parcelas aparecem mês a mês.',
-  },
-  {
-    icon: FileBarChart,
-    color: 'var(--warn)',
-    title: 'Extrato OFX e relatório em PDF',
-    text: 'Importe o extrato do banco em segundos e gere um relatório mensal pronto para guardar.',
-  },
-  {
-    icon: Globe,
-    color: 'var(--accent-bright)',
-    title: 'Brasil e Angola no mesmo app',
-    text: 'R$ e Kz com dados isolados por país — e tudo funciona offline, sincroniza depois.',
-  },
-] as const;
+const Ico = ({ d, s = 18, fill = 'none' }: { d: string; s?: number; fill?: string }) => (
+  <svg
+    width={s}
+    height={s}
+    viewBox="0 0 24 24"
+    fill={fill}
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <path d={d} />
+  </svg>
+);
 
-const KPIS = [
-  { value: '24', label: 'meses de projeção' },
-  { value: '2', label: 'países, um app' },
-  { value: '100%', label: 'offline-first' },
-] as const;
+const P = {
+  logo: 'M12 3a9 9 0 100 18 9 9 0 000-18z M15.5 8.5l-2 5-5 2 2-5z',
+  mail: 'M3 5h18v14H3z M3 7l9 6 9-6',
+  user: 'M12 4a4 4 0 100 8 4 4 0 000-8z M4 21a8 8 0 0116 0',
+  lock: 'M4 11h16v10H4z M8 11V7a4 4 0 018 0v4',
+  spark:
+    'M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z M19 16l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z',
+  repeat: 'M17 2l4 4-4 4 M3 11V9a3 3 0 013-3h15 M7 22l-4-4 4-4 M21 13v2a3 3 0 01-3 3H3',
+  file: 'M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z M14 3v5h5',
+  shield: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z',
+  play: 'M7 4.5v15l13-7.5z',
+  alert: 'M12 8v5 M12 17h.01 M10.3 3.9L2.5 18a2 2 0 001.7 3h15.6a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z',
+} as const;
 
-const EASE = [0.22, 1, 0.36, 1] as const;
+/** Contagem animada do painel de prova social (1200 ms, ease-out cúbico). */
+function useCount(to: number, ms = 1200) {
+  const [v, setV] = useState(0);
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setV(to);
+      return;
+    }
+    let raf = 0;
+    let t0: number | null = null;
+    const step = (t: number) => {
+      if (t0 === null) t0 = t;
+      const p = Math.min((t - t0) / ms, 1);
+      setV(Math.round(to * (1 - Math.pow(1 - p, 3))));
+      if (p < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [to, ms]);
+  return v;
+}
 
-export const LoginView: React.FC<LoginViewProps> = ({ onAuthSuccess, onRegistered, onGuestMode, isOnline }) => {
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+const Google = () => (
+  <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+    <path
+      fill="#EA4335"
+      d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z"
+    />
+    <path
+      fill="#4285F4"
+      d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.6 5.9c4.4-4.1 7-10.1 7-17.6z"
+    />
+    <path
+      fill="#FBBC05"
+      d="M10.5 28.7c-.5-1.4-.8-3-.8-4.7s.3-3.2.8-4.7l-7.9-6.1C.9 16.4 0 20.1 0 24s.9 7.6 2.6 10.8l7.9-6.1z"
+    />
+    <path
+      fill="#34A853"
+      d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.6-5.9c-2.1 1.4-4.9 2.3-8.3 2.3-6.3 0-11.6-4.1-13.5-9.8l-7.9 6.1C6.5 42.6 14.6 48 24 48z"
+    />
+  </svg>
+);
+
+export const LandingView: React.FC<LandingViewProps> = ({
+  onAuthSuccess,
+  onRegistered,
+  onGuestMode,
+  isOnline,
+}) => {
+  const [mode, setMode] = useState<'signup' | 'login'>('signup');
+  const [country, setCountry] = useState<LandingCountry>(LANDING_DEFAULT_COUNTRY);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [country, setCountry] = useState<'BR' | 'AO'>('BR');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const d = LANDING_PREVIEW[country];
+  const nTotal = useCount(LANDING_TOTAL_COMPANIES);
+  const nAO = useCount(LANDING_COMPANIES.AO);
+  const nBR = useCount(LANDING_COMPANIES.BR);
+
+  const T =
+    mode === 'signup'
+      ? ['Comece em 1 minuto', 'Grátis durante o beta. Sem cartão.', 'Criar conta grátis']
+      : ['Bem-vindo de volta', 'Entre para ver o seu panorama de hoje.', 'Entrar no Prumo'];
+
+  const offline = !isOnline && typeof navigator !== 'undefined' && !navigator.onLine;
+
+  const switchMode = (next: 'signup' | 'login') => {
+    setMode(next);
+    setError(null);
+  };
 
   const handleGoogleAuth = async () => {
     setError(null);
@@ -95,11 +150,12 @@ export const LoginView: React.FC<LoginViewProps> = ({ onAuthSuccess, onRegistere
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (busy) return;
     setError(null);
     setBusy(true);
     try {
       const { register, login } = await import('../services/authService');
-      if (mode === 'register') {
+      if (mode === 'signup') {
         const user = await register(email, password, name, country);
         onRegistered({ id: user.id, email: user.email, name: user.name, country: user.country });
       } else {
@@ -119,346 +175,254 @@ export const LoginView: React.FC<LoginViewProps> = ({ onAuthSuccess, onRegistere
     }
   };
 
-  const inputClass =
-    'w-full pl-9 pr-10 py-2.5 text-sm rounded-lg border border-[var(--line)] bg-[var(--surface-2)] text-[var(--text)] placeholder:text-[var(--text-dim)]/70 outline-none transition-all focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-soft)]';
-
   return (
-    <div className="min-h-screen md:h-screen md:overflow-hidden flex flex-col md:flex-row bg-[var(--bg)] text-[var(--text)] relative">
-      {/* Fio dourado no topo da página (assinatura premium) */}
-      <span
-        aria-hidden="true"
-        className="absolute top-0 inset-x-0 h-px z-20 opacity-80"
-        style={{ background: 'linear-gradient(90deg, transparent 0%, var(--accent) 35%, var(--accent-bright) 55%, transparent 100%)' }}
-      />
+    <div className="prumo-landing">
+      <div className="bg" aria-hidden="true">
+        <div className="orb o1" />
+        <div className="orb o2" />
+        <div className="orb o3" />
+        <div className="grid" />
+      </div>
 
-      {/* ── Coluna esquerda: identidade (~58%) ── */}
-      <section
-        className="relative lg:w-[58%] flex-1 flex flex-col p-8 sm:p-12 lg:p-16 overflow-x-hidden md:overflow-y-auto border-b md:border-b-0 md:border-r border-[var(--line)]"
-        style={{
-          /* Pilha de fundos (topo → base): auras douradas, scrim do tema e o wallpaper GIF.
-             No md+ a coluna rola internamente (overflow-y:auto); como o fundo é do próprio
-             elemento (background-attachment: scroll), ele fica parado enquanto o conteúdo
-             restante — recursos e aviso LGPD — desliza por cima. */
-          backgroundImage: [
-            'radial-gradient(760px 420px at 16% -8%, color-mix(in srgb, var(--accent-soft) 70%, transparent) 0%, transparent 62%), radial-gradient(640px 420px at 96% 108%, color-mix(in srgb, var(--accent-soft) 70%, transparent) 0%, transparent 58%)',
-            'linear-gradient(100deg, color-mix(in srgb, var(--bg) 92%, transparent) 0%, color-mix(in srgb, var(--bg) 84%, transparent) 55%, color-mix(in srgb, var(--bg) 70%, transparent) 100%)',
-            `url(${wallpaper})`,
-          ].join(', '),
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          backgroundRepeat: 'no-repeat',
-        }}
-      >
-        {/* Prumo animado — ancorado no canto, sem invadir o texto */}
-        <PlumbLine
-          height={340}
-          country={country}
-          className="absolute -right-10 -bottom-8 w-[300px] opacity-50 hidden lg:block z-0"
-        />
-
-        {/* Cabeçalho: marca + pill de beta */}
-        <motion.header
-          className="relative z-10 flex items-center justify-between"
-          initial={{ opacity: 0, y: -12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, ease: EASE }}
-        >
-          <div className="flex items-center gap-3">
-            <img
-              src="/favicon.svg"
-              alt=""
-              aria-hidden="true"
-              width={44}
-              height={44}
-              className="w-11 h-11 rounded-xl shrink-0"
-              style={{ boxShadow: '0 0 24px var(--gold-glow)' }}
-            />
-            <div>
-              <div className="font-serif-display font-semibold text-2xl tracking-tight leading-none">Prumo</div>
-              <div className="text-[11px] text-[var(--text-dim)] mt-1">Copiloto Financeiro · BR &amp; AO</div>
+      <main className="wrap">
+        <section>
+          <div className="top">
+            <div className="brand">
+              <div className="logo">
+                <Ico d={P.logo} s={24} />
+              </div>
+              <div>
+                <b>Prumo</b>
+                <small>Copiloto financeiro para Brasil e Angola</small>
+              </div>
+            </div>
+            <div className="glass pill" style={{ borderRadius: 99 }}>
+              <i />
+              beta público
             </div>
           </div>
-          <span className="hidden sm:inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface)]/60 px-3 py-1.5 text-[11px] font-medium text-[var(--text-dim)]">
-            <span className="w-1.5 h-1.5 rounded-full bg-[var(--positive)] animate-pulse" />
-            beta público
-          </span>
-        </motion.header>
 
-        {/* Herói */}
-        <div className="relative z-10 flex-1 flex flex-col justify-center max-w-xl py-10">
-          <motion.h1
-            className="font-serif-display text-4xl sm:text-5xl xl:text-[3.4rem] font-bold leading-[1.06] tracking-tight text-balance"
-            initial={{ opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, delay: 0.08, ease: EASE }}
-          >
-            Seu dinheiro de volta ao{' '}
-            <span className="text-[var(--accent)]">prumo</span>.
-          </motion.h1>
+          <h1>
+            Seu dinheiro de volta ao <em>prumo</em>.
+          </h1>
+          <p className="lead">
+            Lançamentos, orçamentos, metas e um copiloto de IA que conhece as suas contas.{' '}
+            <b>Funciona sem internet</b> e sincroniza quando a conexão volta.
+          </p>
 
-          <motion.p
-            className="mt-4 text-sm sm:text-base text-[var(--text-dim)] leading-relaxed max-w-md"
-            initial={{ opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, delay: 0.16, ease: EASE }}
-          >
-            Lançamentos, orçamentos, metas e copiloto IA — no Brasil e em Angola.
-            <strong className="text-[var(--text)]"> 100% offline-first</strong>: funciona sem internet
-            e sincroniza quando a conexão volta.
-          </motion.p>
+          <div className="glass proof">
+            <div className="avs" aria-hidden="true">
+              <i />
+              <i />
+              <i />
+              <i />
+            </div>
+            <div className="ptxt">
+              <strong>{nTotal} empresas</strong>
+              <span>já usam o Prumo no dia a dia</span>
+            </div>
+            <div className="pc">
+              <div>
+                <b>{nAO}</b>🇦🇴 Angola
+              </div>
+              <div>
+                <b>{nBR}</b>🇧🇷 Brasil
+              </div>
+            </div>
+          </div>
 
-          {/* KPIs tipográficos (sem formatter de moeda — bug antigo) */}
-          <motion.div
-            className="mt-8 flex items-center gap-5 sm:gap-8"
-            initial={{ opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, delay: 0.24, ease: EASE }}
-          >
-            {KPIS.map((k, i) => (
-              <React.Fragment key={k.label}>
-                {i > 0 && <div className="w-px h-9 bg-[var(--line)]" />}
-                <div>
-                  <div
-                    className="font-serif-display text-2xl sm:text-3xl font-bold text-[var(--accent)] leading-none"
-                    style={{ fontVariantNumeric: 'tabular-nums' }}
+          <div className="stage">
+            <div className="phonecol">
+              <div className="glass cur" role="group" aria-label="Moeda do exemplo">
+                {LANDING_PREVIEW_ORDER.map((k) => (
+                  <button
+                    key={k}
+                    type="button"
+                    aria-pressed={country === k}
+                    onClick={() => setCountry(k)}
                   >
-                    {k.value}
+                    {LANDING_PREVIEW[k].flag} {LANDING_PREVIEW[k].cur}
+                  </button>
+                ))}
+              </div>
+              <div className="glass phone" aria-label="Pré-visualização do app">
+                <div className="screen">
+                  <div key={country} className="swap">
+                    <div className="sh">
+                      <span>Saldo projetado</span>
+                      <span>12 meses</span>
+                    </div>
+                    <div className="bal">{d.bal}</div>
+                    <div className="up">{d.up}</div>
+                    <svg
+                      className="chart"
+                      viewBox="0 0 220 92"
+                      preserveAspectRatio="none"
+                      aria-hidden="true"
+                    >
+                      <defs>
+                        <linearGradient id="pg" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0" stopColor="#e3b93c" stopOpacity=".45" />
+                          <stop offset="1" stopColor="#e3b93c" stopOpacity="0" />
+                        </linearGradient>
+                      </defs>
+                      <path
+                        d="M0 74 C25 70 35 52 60 56 S100 68 125 40 S180 24 220 10 V92 H0Z"
+                        fill="url(#pg)"
+                      />
+                      <path
+                        d="M0 74 C25 70 35 52 60 56 S100 68 125 40 S180 24 220 10"
+                        fill="none"
+                        stroke="#f6dc8a"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                      />
+                      <circle cx="220" cy="10" r="4" fill="#f6dc8a" />
+                    </svg>
+                    <div className="mini">
+                      <div>
+                        Gastos<b>{d.gastos}</b>
+                      </div>
+                      <div>
+                        {d.meta[0]}
+                        <b>{d.meta[1]}</b>
+                      </div>
+                    </div>
+                    <div className="ask">{d.ask}</div>
+                    <div className="chat">
+                      <span>Copiloto Prumo</span>
+                      {d.reply}
+                    </div>
                   </div>
-                  <div className="text-[11px] uppercase tracking-wider font-semibold text-[var(--text-dim)] mt-1">
-                    {k.label}
-                  </div>
-                </div>
-              </React.Fragment>
-            ))}
-          </motion.div>
-
-          {/* Recursos — ocultos no mobile para o CTA ficar acima da dobra */}
-          <motion.div
-            className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-xl"
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, delay: 0.32, ease: EASE }}
-          >
-            {FEATURES.map((f) => (
-              <div
-                key={f.title}
-                className="group rounded-xl border border-[var(--line)] bg-[var(--surface)]/70 backdrop-blur-sm p-4 transition-colors duration-300 hover:border-[var(--accent)]/40"
-              >
-                <div className="flex items-center gap-2.5 mb-1.5">
-                  <span
-                    className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-transform duration-300 group-hover:scale-110"
-                    style={{ background: 'var(--accent-soft)' }}
-                  >
-                    <f.icon className="w-4 h-4" style={{ color: f.color }} />
-                  </span>
-                  <span className="text-[13px] font-semibold leading-tight">{f.title}</span>
-                </div>
-                <p className="text-[11px] leading-relaxed text-[var(--text-dim)]">{f.text}</p>
-              </div>
-            ))}
-          </motion.div>
-        </div>
-
-        {/* Rodapé de segurança */}
-        <motion.p
-          className="relative z-10 text-[11px] text-[var(--text-dim)] flex items-start gap-1.5 max-w-lg"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.8, delay: 0.4 }}
-        >
-          <ShieldCheck className="w-3.5 h-3.5 text-[var(--positive)] shrink-0 mt-0.5" />
-          Ao continuar você concorda com o uso dos seus dados conforme a LGPD (n° 13.709/2018).
-          Exporte ou elimine sua conta e dados a qualquer momento.
-        </motion.p>
-      </section>
-
-      {/* ── Coluna direita: formulário (~42%) ── */}
-      <section className="relative flex-1 flex items-center justify-center p-6 sm:p-12 md:h-screen">
-        <motion.div
-          className="w-full max-w-md"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, delay: 0.2, ease: EASE }}
-        >
-          {!isOnline && (
-            <div className="mb-5 p-3.5 rounded-xl border border-[var(--warn)]/30 bg-[var(--warn-soft)] text-xs text-[var(--text)] flex items-center gap-2.5">
-              <WifiOff className="w-4 h-4 text-[var(--warn)] shrink-0" />
-              <span>Você está offline. Entrar exige conexão — seus dados locais continuam salvos no dispositivo.</span>
-            </div>
-          )}
-
-          <form
-            onSubmit={handleSubmit}
-            className="relative rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-6 sm:p-7 space-y-4"
-            style={{ boxShadow: '0 24px 60px -24px var(--ink-glow)' }}
-          >
-            {/* Fio dourado no topo do card (eco da assinatura da página) */}
-            <span
-              aria-hidden="true"
-              className="absolute -top-px left-10 right-10 h-px"
-              style={{ background: 'linear-gradient(90deg, transparent, var(--accent), transparent)' }}
-            />
-
-            {/* Abas integradas ao card (antes flutuavam separadas — desalinhadas) */}
-            <div className="grid grid-cols-2 p-1 rounded-xl border border-[var(--line)] bg-[var(--surface-2)]">
-              {(['login', 'register'] as const).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => {
-                    setMode(m);
-                    setError(null);
-                  }}
-                  className={`py-2 text-sm font-semibold rounded-lg transition-all cursor-pointer ${
-                    mode === m
-                      ? 'bg-[var(--surface)] text-[var(--text)] shadow-xs'
-                      : 'text-[var(--text-dim)] hover:text-[var(--text)]'
-                  }`}
-                >
-                  {m === 'login' ? 'Entrar' : 'Criar conta'}
-                </button>
-              ))}
-            </div>
-
-            <h2 className="font-serif-display text-2xl font-bold tracking-tight pt-1">
-              {mode === 'login' ? 'Bem-vindo de volta' : 'Comece agora'}
-            </h2>
-
-            {mode === 'register' && (
-              <div className="space-y-1.5">
-                <label htmlFor="prumo-name" className="text-xs font-medium text-[var(--text-dim)]">Nome</label>
-                <div className="relative">
-                  <UserIcon className="w-4 h-4 text-[var(--text-dim)] absolute left-3 top-3 pointer-events-none" />
-                  <input
-                    id="prumo-name"
-                    type="text"
-                    autoComplete="name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Como devemos te chamar?"
-                    className={inputClass}
-                    required
-                  />
                 </div>
               </div>
-            )}
-
-            <div className="space-y-1.5">
-              <label htmlFor="prumo-email" className="text-xs font-medium text-[var(--text-dim)]">Email</label>
-              <div className="relative">
-                <Mail className="w-4 h-4 text-[var(--text-dim)] absolute left-3 top-3 pointer-events-none" />
-                <input
-                  id="prumo-email"
-                  type="email"
-                  autoComplete="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="voce@exemplo.com"
-                  className={inputClass}
-                  required
-                />
-              </div>
             </div>
 
-            <div className="space-y-1.5">
-              <label htmlFor="prumo-password" className="text-xs font-medium text-[var(--text-dim)]">Senha</label>
-              <div className="relative">
-                <Lock className="w-4 h-4 text-[var(--text-dim)] absolute left-3 top-3 pointer-events-none" />
-                <input
-                  id="prumo-password"
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder={mode === 'register' ? 'Mínimo de 8 caracteres' : 'Sua senha'}
-                  className={inputClass}
-                  minLength={mode === 'register' ? 8 : undefined}
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((p) => !p)}
-                  aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
-                  className="absolute right-2.5 top-2 p-0.5 rounded-md text-[var(--text-dim)] hover:text-[var(--text)] transition-colors cursor-pointer"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
+            <div className="feat">
+              <div className="glass card">
+                <div className="ico">
+                  <Ico d={P.spark} s={20} />
+                </div>
+                <h3>Copiloto de IA que fala a sua língua</h3>
+                <p>Respostas baseadas nas suas contas reais. Escreva ou pergunte por voz.</p>
+              </div>
+              <div className="glass card">
+                <div className="flags" aria-hidden="true">
+                  🇧🇷 🇦🇴
+                </div>
+                <h3>Brasil e Angola no mesmo app</h3>
+                <p>R$ e Kz com dados separados por país, tudo offline e sincronizado depois.</p>
               </div>
             </div>
+          </div>
 
-            {mode === 'register' && (
-              <div className="space-y-1.5">
-                <label htmlFor="prumo-country" className="text-xs font-medium text-[var(--text-dim)]">País do mercado</label>
-                <select
-                  id="prumo-country"
-                  value={country}
-                  onChange={(e) => setCountry(e.target.value as 'BR' | 'AO')}
-                  className="w-full px-3 py-2.5 text-sm rounded-lg border border-[var(--line)] bg-[var(--surface-2)] text-[var(--text)] outline-none transition-all focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-soft)] cursor-pointer"
-                >
-                  <option value="BR">🇧🇷 Brasil (BRL / R$)</option>
-                  <option value="AO">🇦🇴 Angola (AOA / Kz)</option>
-                </select>
-              </div>
-            )}
-
-            {error && (
-              <div
-                role="alert"
-                className="p-3 rounded-lg border border-[var(--danger)]/30 bg-[var(--danger-soft)] text-xs font-medium text-[var(--danger)] flex items-start gap-2"
-              >
-                <AlertCircle className="w-4 h-4 shrink-0 mt-px" />
-                <span>{error}</span>
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={busy || (!isOnline && typeof navigator !== 'undefined' && !navigator.onLine)}
-              className="cta-shine w-full py-3 rounded-xl bg-[var(--accent)] text-sm font-bold tracking-wide hover:opacity-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
-              style={{ boxShadow: '0 10px 30px -10px var(--gold-glow)' }}
-            >
-              {busy ? 'Aguarde...' : mode === 'login' ? 'Entrar no Prumo' : 'Criar minha conta'}
-            </button>
-
-            <div className="relative py-1">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-[var(--line)]" />
-              </div>
-              <div className="relative flex justify-center">
-                <span className="px-3 bg-[var(--surface)] text-[11px] text-[var(--text-dim)]">ou</span>
-              </div>
+          <div className="row">
+            <div className="glass chip" style={{ borderRadius: 99 }}>
+              <Ico d={P.repeat} s={16} />
+              Recorrências e parcelas automáticas
             </div>
+            <div className="glass chip" style={{ borderRadius: 99 }}>
+              <Ico d={P.file} s={16} />
+              Extrato OFX e relatório em PDF
+            </div>
+          </div>
+        </section>
 
+        <aside className="glass auth" data-t={mode}>
+          <div className="seg" data-t={mode} role="tablist">
+            <div className="knob" />
             <button
               type="button"
-              onClick={handleGoogleAuth}
-              className="w-full py-3 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-sm font-semibold text-[var(--text)] hover:border-[var(--accent)]/40 hover:bg-[var(--surface-2)] transition-colors cursor-pointer flex items-center justify-center gap-2"
+              role="tab"
+              aria-selected={mode === 'signup'}
+              onClick={() => switchMode('signup')}
             >
-              <svg className="w-4 h-4" viewBox="0 0 24 24">
-                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z"/>
-                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                <path fill="#FBBC05" d="M5.84 14.1c-.22-.66-.35-1.36-.35-2.1s.13-1.44.35-2.1V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.84z"/>
-                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-              </svg>
-              <span>Continuar com Google</span>
+              Criar conta
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === 'login'}
+              onClick={() => switchMode('login')}
+            >
+              Entrar
+            </button>
+          </div>
+          <h2>{T[0]}</h2>
+          <p className="sub">{T[1]}</p>
+
+          <form onSubmit={handleSubmit}>
+            <div className="name">
+              <label htmlFor="n">Nome</label>
+              <div className="field">
+                <Ico d={P.user} />
+                <input
+                  id="n"
+                  name="name"
+                  placeholder="Como devemos chamar você?"
+                  autoComplete="name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+            <label htmlFor="e">Email</label>
+            <div className="field">
+              <Ico d={P.mail} />
+              <input
+                id="e"
+                name="email"
+                type="email"
+                required
+                placeholder="voce@exemplo.com"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
+            <label htmlFor="p">Senha</label>
+            <div className="field">
+              <Ico d={P.lock} />
+              <input
+                id="p"
+                name="password"
+                type="password"
+                required
+                minLength={mode === 'signup' ? 8 : undefined}
+                placeholder="Sua senha"
+                autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+            <button className="btn" type="submit" disabled={busy || offline} aria-busy={busy}>
+              {busy ? 'Aguarde...' : T[2]}
             </button>
           </form>
 
-          {/* Demo — botão fantasma abaixo do card, sem competir com o CTA */}
-          <button
-            type="button"
-            onClick={onGuestMode}
-            className="group mt-4 w-full py-2.5 rounded-xl border border-transparent text-sm font-semibold text-[var(--text-dim)] hover:text-[var(--text)] hover:border-[var(--line)] hover:bg-[var(--surface)]/50 transition-colors cursor-pointer flex items-center justify-center gap-1.5"
-          >
-            Explorar demonstração sem conta
-            <ChevronRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-0.5" />
-          </button>
+          {error && (
+            <div className="error" role="alert">
+              <Ico d={P.alert} s={16} />
+              <span>{error}</span>
+            </div>
+          )}
 
-          <p className="mt-4 text-center text-[11px] text-[var(--text-dim)]">
-            Prumo © {new Date().getFullYear()} · Sessão segura · LGPD
-          </p>
-        </motion.div>
-      </section>
+          <div className="or">ou</div>
+          <button className="ghost" type="button" onClick={handleGoogleAuth} disabled={busy}>
+            <Google />
+            Continuar com Google
+          </button>
+          <button className="ghost demo" type="button" onClick={onGuestMode}>
+            <Ico d={P.play} fill="currentColor" />
+            Explorar a demonstração sem conta
+          </button>
+          <div className="trust">
+            <Ico d={P.shield} s={14} />
+            Dados criptografados · Conforme a LGPD
+          </div>
+        </aside>
+      </main>
     </div>
   );
 };
