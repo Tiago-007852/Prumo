@@ -49,7 +49,7 @@ import { OfxImportModal } from './components/OfxImportModal';
 import { RecurrenceManagerModal } from './components/RecurrenceManagerModal';
 import { MonthlyReportModal } from './components/MonthlyReportModal';
 import { ProfileModal } from './components/ProfileModal';
-import { LoginView } from './components/LoginView';
+import { LandingView } from './components/LandingView';
 import {
   loadCountryData,
   saveCountryData,
@@ -941,7 +941,7 @@ Todas as ferramentas do Prumo — incluindo registro de lançamentos, verificaç
 
   if (authStatus === 'guest') {
     return (
-      <LoginView
+      <LandingView
         onAuthSuccess={(u) => handleAuthSuccess(u, false)}
         onRegistered={(u) => handleAuthSuccess(u, true)}
         onGuestMode={() => {

@@ -1,6 +1,6 @@
 /**
  * Regras puras do login com Google (Fase 6) — sem I/O, testáveis.
- * Usadas por LoginView (GIS callback) e pelos testes phase6.
+ * Usadas por LandingView (GIS callback) e pelos testes phase6.
  */
 
 /** Resposta mínima do callback do Google Identity Services. */
