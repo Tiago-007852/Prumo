@@ -1,31 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Prumo">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#1B2231"/>
-      <stop offset="1" stop-color="#0B0E14"/>
-    </linearGradient>
-    <radialGradient id="glow" cx="0.5" cy="0.62" r="0.55">
-      <stop offset="0" stop-color="#D4AF37" stop-opacity="0.30"/>
-      <stop offset="1" stop-color="#D4AF37" stop-opacity="0"/>
-    </radialGradient>
-    <linearGradient id="gold" x1="0.2" y1="0" x2="0.8" y2="1">
-      <stop offset="0" stop-color="#F6E3A1"/>
-      <stop offset="0.45" stop-color="#E6C868"/>
-      <stop offset="1" stop-color="#B8901F"/>
+    <linearGradient id="gold" x1="0.15" y1="0" x2="0.75" y2="1">
+      <stop offset="0" stop-color="#F6DC8A"/>
+      <stop offset="1" stop-color="#E3B93C"/>
     </linearGradient>
   </defs>
 
-  <!-- Bloco meia-noite -->
-  <rect width="64" height="64" rx="14" fill="url(#bg)"/>
-  <rect width="64" height="64" rx="14" fill="url(#glow)"/>
+  <!-- Chip dourado — mesma arte do cabeçalho da landing (.logo) -->
+  <rect width="64" height="64" rx="18" fill="url(#gold)"/>
+  <rect x="1.4" y="1.4" width="61.2" height="61.2" rx="16.6" fill="none" stroke="#FFFFFF" stroke-opacity="0.5" stroke-width="1.6"/>
 
   <!-- Fio + anel do prumo -->
-  <path d="M32 7.5 V 16.5" stroke="#D4AF37" stroke-width="2.4" stroke-linecap="round"/>
-  <circle cx="32" cy="21" r="4.6" fill="none" stroke="#D4AF37" stroke-width="2.6"/>
+  <path d="M32 7.5V16.5" stroke="#2A2008" stroke-width="2.6" stroke-linecap="round"/>
+  <circle cx="32" cy="21" r="4.6" fill="none" stroke="#2A2008" stroke-width="2.6"/>
 
-  <!-- Massa do prumo (prumo de pedreiro) -->
-  <path d="M32 25.6 C40.5 25.6 45 31.4 45 37.8 C45 45.6 38.8 52.4 32 57.6 C25.2 52.4 19 45.6 19 37.8 C19 31.4 23.5 25.6 32 25.6 Z" fill="url(#gold)"/>
-
-  <!-- Realce do metal -->
-  <path d="M26.4 31.8 C23.6 34.6 22.8 38.6 23.6 42.4" stroke="#FFFFFF" stroke-opacity="0.45" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+  <!-- Massa do prumo (fio de prumo de pedreiro) -->
+  <path d="M32 25.6C40.5 25.6 45 31.4 45 37.8C45 45.6 38.8 52.4 32 57.6C25.2 52.4 19 45.6 19 37.8C19 31.4 23.5 25.6 32 25.6Z" fill="#2A2008"/>
 </svg>

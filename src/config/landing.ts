@@ -16,6 +16,32 @@ export const LANDING_COMPANIES: Record<LandingCountry, number> = {
 /** Total do painel de prova social (soma dos países — nunca fixar à mão). */
 export const LANDING_TOTAL_COMPANIES = LANDING_COMPANIES.AO + LANDING_COMPANIES.BR; // 17
 
+/**
+ * Marcas mostradas nos avatares do painel de prova social (ao lado de
+ * "17 empresas").
+ *
+ * São marcas abstratas — não representam nenhuma empresa real e não há nomes
+ * nem logotipos de terceiros aqui. Para mostrar o logotipo real de uma empresa,
+ * basta acrescentar `src` (caminho de um SVG/PNG em `public/`) à entrada
+ * respetiva: o avatar passa a usar a imagem em vez da marca abstrata.
+ * A ordem das entradas acompanha as quatro cores definidas no CSS (.avs i).
+ */
+export type LandingLogoMark = 'diamond' | 'hexagon' | 'triangle' | 'ring';
+
+export interface LandingSocialLogo {
+  /** Marca abstrata desenhada em SVG (usada quando não há `src`). */
+  mark: LandingLogoMark;
+  /** Logotipo real (ex.: '/logos/acme.svg'). Opcional. */
+  src?: string;
+}
+
+export const LANDING_SOCIAL_LOGOS: readonly LandingSocialLogo[] = [
+  { mark: 'diamond' },
+  { mark: 'hexagon' },
+  { mark: 'triangle' },
+  { mark: 'ring' },
+];
+
 /** País selecionado por padrão no seletor de moeda do mockup. */
 export const LANDING_DEFAULT_COUNTRY: LandingCountry = 'BR';
 

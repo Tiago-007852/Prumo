@@ -5,8 +5,10 @@ import {
   LANDING_DEFAULT_COUNTRY,
   LANDING_PREVIEW,
   LANDING_PREVIEW_ORDER,
+  LANDING_SOCIAL_LOGOS,
   LANDING_TOTAL_COMPANIES,
   type LandingCountry,
+  type LandingLogoMark,
 } from '../config/landing';
 
 /**
@@ -41,7 +43,6 @@ const Ico = ({ d, s = 18, fill = 'none' }: { d: string; s?: number; fill?: strin
 );
 
 const P = {
-  logo: 'M12 3a9 9 0 100 18 9 9 0 000-18z M15.5 8.5l-2 5-5 2 2-5z',
   mail: 'M3 5h18v14H3z M3 7l9 6 9-6',
   user: 'M12 4a4 4 0 100 8 4 4 0 000-8z M4 21a8 8 0 0116 0',
   lock: 'M4 11h16v10H4z M8 11V7a4 4 0 018 0v4',
@@ -53,6 +54,42 @@ const P = {
   play: 'M7 4.5v15l13-7.5z',
   alert: 'M12 8v5 M12 17h.01 M10.3 3.9L2.5 18a2 2 0 001.7 3h15.6a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z',
 } as const;
+
+/**
+ * Marca do Prumo: o fio, o anel e a massa do prumo (o instrumento que dá o nome
+ * ao app). Substitui o ícone genérico do cabeçalho da referência — a mesma arte
+ * do favicon/ap icon (`public/favicon.svg`), desenhada no mesmo viewBox 0 0 64 64
+ * para que cabeçalho e separador do navegador mostrem exatamente o mesmo logo.
+ */
+const PRUMO_MARK = {
+  wire: 'M32 7.5V16.5',
+  mass: 'M32 25.6C40.5 25.6 45 31.4 45 37.8C45 45.6 38.8 52.4 32 57.6C25.2 52.4 19 45.6 19 37.8C19 31.4 23.5 25.6 32 25.6Z',
+};
+
+const PrumoMark = ({ s = 27 }: { s?: number }) => (
+  <svg width={s} height={s} viewBox="0 0 64 64" fill="none" aria-hidden="true">
+    <path d={PRUMO_MARK.wire} stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
+    <circle cx="32" cy="21" r="4.6" stroke="currentColor" strokeWidth="2.6" />
+    <path d={PRUMO_MARK.mass} fill="currentColor" />
+  </svg>
+);
+
+/**
+ * Marcas abstratas dos avatares de prova social (LANDING_SOCIAL_LOGOS).
+ * Desenhadas no viewBox 0 0 24 24 e herdadas via currentColor.
+ */
+const LOGO_MARKS: Record<LandingLogoMark, string> = {
+  diamond: 'M12 3.4 20.6 12 12 20.6 3.4 12z',
+  hexagon: 'M12 3.2 19.6 7.6v8.8L12 20.8 4.4 16.4V7.6z',
+  triangle: 'M12 3.5 20.7 18.9H3.3z',
+  ring: 'M12 4.1a7.9 7.9 0 100 15.8 7.9 7.9 0 000-15.8zm0 4.3a3.6 3.6 0 110 7.2 3.6 3.6 0 010-7.2z',
+};
+
+const LogoMark = ({ mark }: { mark: LandingLogoMark }) => (
+  <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+    <path d={LOGO_MARKS[mark]} fill="currentColor" fillRule="evenodd" />
+  </svg>
+);
 
 /** Contagem animada do painel de prova social (1200 ms, ease-out cúbico). */
 function useCount(to: number, ms = 1200) {
@@ -189,7 +226,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
           <div className="top">
             <div className="brand">
               <div className="logo">
-                <Ico d={P.logo} s={24} />
+                <PrumoMark />
               </div>
               <div>
                 <b>Prumo</b>
@@ -212,10 +249,18 @@ export const LandingView: React.FC<LandingViewProps> = ({
 
           <div className="glass proof">
             <div className="avs" aria-hidden="true">
-              <i />
-              <i />
-              <i />
-              <i />
+              {LANDING_SOCIAL_LOGOS.map((logo) => (
+                <i
+                  key={logo.mark}
+                  style={
+                    logo.src
+                      ? { backgroundImage: `url(${logo.src})`, backgroundSize: 'cover' }
+                      : undefined
+                  }
+                >
+                  {!logo.src && <LogoMark mark={logo.mark} />}
+                </i>
+              ))}
             </div>
             <div className="ptxt">
               <strong>{nTotal} empresas</strong>

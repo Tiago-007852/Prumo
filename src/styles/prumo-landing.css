@@ -665,6 +665,13 @@
 .prumo-landing .avs i:nth-child(4) {
   background: linear-gradient(145deg, #8fd0ff, #2d5fa8);
 }
+/* Acréscimo (não altera valores da referência): centra a marca desenhada dentro
+   do avatar — a lista de marcas/logotipos vem de LANDING_SOCIAL_LOGOS. */
+.prumo-landing .avs i {
+  display: grid;
+  place-items: center;
+  color: #0b0f19;
+}
 .prumo-landing .ptxt {
   flex: 1;
   min-width: 170px;
