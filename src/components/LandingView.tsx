@@ -251,14 +251,15 @@ export const LandingView: React.FC<LandingViewProps> = ({
             <div className="avs" aria-hidden="true">
               {LANDING_SOCIAL_LOGOS.map((logo) => (
                 <i
-                  key={logo.mark}
-                  style={
-                    logo.src
-                      ? { backgroundImage: `url(${logo.src})`, backgroundSize: 'cover' }
-                      : undefined
-                  }
+                  key={logo.name ?? logo.mark}
+                  className={logo.src ? 'has-logo' : undefined}
+                  title={logo.name}
                 >
-                  {!logo.src && <LogoMark mark={logo.mark} />}
+                  {logo.src ? (
+                    <img src={logo.src} alt="" loading="lazy" decoding="async" width={32} height={32} />
+                  ) : (
+                    <LogoMark mark={logo.mark} />
+                  )}
                 </i>
               ))}
             </div>

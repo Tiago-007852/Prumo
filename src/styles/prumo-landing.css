@@ -672,6 +672,19 @@
   place-items: center;
   color: #0b0f19;
 }
+/* Avatar com logotipo real: fundo branco, logo contido e centrado no círculo. */
+.prumo-landing .avs i.has-logo {
+  background: #fff;
+  overflow: hidden;
+}
+.prumo-landing .avs i.has-logo img {
+  width: 100%;
+  height: 100%;
+  padding: 4px;
+  box-sizing: border-box;
+  object-fit: contain;
+  border-radius: 50%;
+}
 .prumo-landing .ptxt {
   flex: 1;
   min-width: 170px;

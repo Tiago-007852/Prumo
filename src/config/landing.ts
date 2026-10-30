@@ -31,15 +31,17 @@ export type LandingLogoMark = 'diamond' | 'hexagon' | 'triangle' | 'ring';
 export interface LandingSocialLogo {
   /** Marca abstrata desenhada em SVG (usada quando não há `src`). */
   mark: LandingLogoMark;
+  /** Nome da empresa (mostrado ao passar o rato por cima do avatar). Opcional. */
+  name?: string;
   /** Logotipo real (ex.: '/logos/acme.svg'). Opcional. */
   src?: string;
 }
 
 export const LANDING_SOCIAL_LOGOS: readonly LandingSocialLogo[] = [
-  { mark: 'diamond' },
-  { mark: 'hexagon' },
-  { mark: 'triangle' },
-  { mark: 'ring' },
+  { mark: 'diamond', name: 'Bazarixy', src: '/logos/bazarixy.png' },
+  { mark: 'hexagon', name: 'Bazar da Laura', src: '/logos/bazar-da-laura.png' },
+  { mark: 'triangle', name: 'Jemac', src: '/logos/jemac.png' },
+  { mark: 'ring', name: 'AltomaFood', src: '/logos/altomafood.png' },
 ];
 
 /** País selecionado por padrão no seletor de moeda do mockup. */
