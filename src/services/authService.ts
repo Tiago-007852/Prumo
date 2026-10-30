@@ -42,6 +42,18 @@ export async function login(email: string, password: string): Promise<AuthUser> 
   return data.user as AuthUser;
 }
 
+/**
+ * Actualiza o país da conta no servidor (moeda, funil de preços, copiloto).
+ * O /api/auth/me passa a devolver o novo valor — sem isto, a troca no perfil
+ * era desfeita no reload seguinte.
+ */
+export async function updateCountry(country: 'BR' | 'AO'): Promise<AuthUser> {
+  const res = await postJson('/api/sync', { action: 'set_country', country });
+  if (!res.ok) throw new Error(await readError(res, 'Falha ao atualizar o país'));
+  const data = await res.json();
+  return data.user as AuthUser;
+}
+
 export async function logout(): Promise<void> {
   await postJson('/api/auth/logout', {});
 }

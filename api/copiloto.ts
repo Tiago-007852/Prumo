@@ -1,11 +1,26 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { generateCopilotoReply } from './_lib/copiloto';
 import { loadSystemPrompt } from './_lib/systemPrompt';
+import { requireUser } from './_lib/http';
+import { checkRateLimit, rateLimitMessage } from './_lib/rateLimit';
 import { GoogleGenAI } from '@google/genai';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Método não permitido. Use POST.' });
+  }
+
+  // Sem sessão, isto seria um proxy grátis para a API de IA (custo e abuso).
+  const user = await requireUser(req);
+  if (!user) {
+    return res.status(401).json({ error: 'Entre na sua conta para usar o copiloto.' });
+  }
+
+  // 20 perguntas por 5 minutos por conta — generoso para conversa, apertado
+  // para automação.
+  const limit = await checkRateLimit(`copilot:${user.id}`, 20, 300);
+  if (!limit.allowed) {
+    return res.status(429).json({ error: rateLimitMessage(limit) });
   }
 
   try {

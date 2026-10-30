@@ -28,6 +28,25 @@ function expiryDate(): Date {
   return new Date(Date.now() + SESSION_TTL_DAYS * 24 * 60 * 60 * 1000);
 }
 
+let _lastSessionPurge = 0;
+
+/**
+ * Remove sessões expiradas. Corre no máximo uma vez por hora por instância —
+ * não faz sentido pagar um DELETE em cada login, mas sem isto a tabela cresce
+ * para sempre.
+ */
+async function purgeExpiredSessions(): Promise<void> {
+  const now = Date.now();
+  if (now - _lastSessionPurge < 60 * 60 * 1000) return;
+  _lastSessionPurge = now;
+  try {
+    const sql = getSql();
+    await sql`DELETE FROM sessions WHERE expires_at < now()`;
+  } catch (err) {
+    console.warn('[Prumo] Não foi possível limpar sessões expiradas:', err);
+  }
+}
+
 export function normalizeEmail(email: unknown): string {
   return String(email || '').trim().toLowerCase();
 }
@@ -83,6 +102,7 @@ export async function registerUser(input: {
     INSERT INTO sessions (token, user_id, expires_at)
     VALUES (${token}, ${user.id}, ${expiryDate().toISOString()})
   `;
+  await purgeExpiredSessions();
   return { user, token, expiresAt: expiryDate() };
 }
 
@@ -124,6 +144,7 @@ export async function loginUser(input: {
     INSERT INTO sessions (token, user_id, expires_at)
     VALUES (${token}, ${user.id}, ${expiryDate().toISOString()})
   `;
+  await purgeExpiredSessions();
   return { user, token, expiresAt: expiryDate() };
 }
 
@@ -218,11 +239,14 @@ export async function verifyGoogleIdToken(idToken: string): Promise<GoogleTokenI
  */
 export async function googleLoginUser(input: {
   idToken: unknown;
+  /** País sugerido pelo cliente (só aplicado a contas NOVAS). */
+  country?: unknown;
 }): Promise<AuthResult> {
   await ensureSchema();
   await ensureGoogleSchema();
   const idToken = String(input.idToken || '').trim();
   if (!idToken) throw new Error('Token do Google ausente');
+  const requestedCountry: 'BR' | 'AO' = input.country === 'AO' ? 'AO' : 'BR';
 
   const info = await verifyGoogleIdToken(idToken);
   const email = normalizeEmail(info.email);
@@ -245,10 +269,10 @@ export async function googleLoginUser(input: {
   // 3. Conta nova (nasce SEM acesso — paywall igual ao registro por senha)
   if (!user) {
     const id = `usr_${randomBytes(8).toString('hex')}`;
-    // País por domínio do email é frágil; BR é o padrão do schema.
+    // O país vem do cliente (deteção por região no browser); sem ele, BR.
     rows = await sql`
       INSERT INTO users (id, email, password_hash, name, country, has_access, google_sub)
-      VALUES (${id}, ${email}, ${'google:' + randomBytes(12).toString('hex')}, ${name}, 'BR', false, ${info.sub})
+      VALUES (${id}, ${email}, ${'google:' + randomBytes(12).toString('hex')}, ${name}, ${requestedCountry}, false, ${info.sub})
       RETURNING id, email, name, country
     `;
     user = toAuthUser(rows[0] as Record<string, unknown>);
@@ -260,6 +284,23 @@ export async function googleLoginUser(input: {
     VALUES (${token}, ${user.id}, ${expiryDate().toISOString()})
   `;
   return { user, token, expiresAt: expiryDate() };
+}
+
+/**
+ * Actualiza o país da conta. É a fonte da verdade usada pelo /api/auth/me,
+ * pelo funil de preços e pelo copiloto — sem isto, a troca no perfil ficava
+ * só no cliente e voltava ao valor antigo no reload seguinte.
+ */
+export async function updateUserCountry(userId: string, country: unknown): Promise<AuthUser> {
+  await ensureSchema();
+  const value: 'BR' | 'AO' = country === 'AO' ? 'AO' : 'BR';
+  const sql = getSql();
+  const rows = await sql`
+    UPDATE users SET country = ${value} WHERE id = ${userId}
+    RETURNING id, email, name, country
+  `;
+  if (rows.length === 0) throw new Error('Conta não encontrada');
+  return toAuthUser(rows[0] as Record<string, unknown>);
 }
 
 function toAuthUser(row: Record<string, unknown>): AuthUser {

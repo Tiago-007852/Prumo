@@ -200,6 +200,31 @@ export function analyzeBudgets(
 }
 
 /**
+ * Agrega receitas/despesas por categoria nos últimos N dias.
+ * Alimenta o retrato financeiro enviado ao copiloto — sem isto, a IA recebia
+ * "Sem histórico recente" e não conseguia responder a perguntas históricas.
+ */
+export function calculateCategoryStats(
+  transactions: Transaction[],
+  days = 90
+): Record<string, { income: number; expense: number; count: number }> {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - days);
+  const cutoffIso = cutoff.toISOString().slice(0, 10);
+
+  const stats: Record<string, { income: number; expense: number; count: number }> = {};
+  for (const tx of transactions) {
+    if (!tx.occurredAt || tx.occurredAt < cutoffIso) continue;
+    const entry = stats[tx.category] || { income: 0, expense: 0, count: 0 };
+    if (tx.type === 'income') entry.income += tx.amount;
+    else entry.expense += Math.abs(tx.amount);
+    entry.count += 1;
+    stats[tx.category] = entry;
+  }
+  return stats;
+}
+
+/**
  * Projeção de Cenários de 24 meses
  * Calcula a evolução patrimonial com e sem os eventos do cenário
  */

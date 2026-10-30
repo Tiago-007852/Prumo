@@ -10,6 +10,7 @@ import {
   type LandingCountry,
   type LandingLogoMark,
 } from '../config/landing';
+import { detectDefaultCountry } from '../services/region';
 
 /**
  * Landing "liquid glass" (fonte da verdade: docs/reference-landing/Prumo.jsx + Prumo.css).
@@ -66,7 +67,7 @@ const PRUMO_MARK = {
   mass: 'M32 25.6C40.5 25.6 45 31.4 45 37.8C45 45.6 38.8 52.4 32 57.6C25.2 52.4 19 45.6 19 37.8C19 31.4 23.5 25.6 32 25.6Z',
 };
 
-const PrumoMark = ({ s = 27 }: { s?: number }) => (
+export const PrumoMark = ({ s = 27 }: { s?: number }) => (
   <svg width={s} height={s} viewBox="0 0 64 64" fill="none" aria-hidden="true">
     <path d={PRUMO_MARK.wire} stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
     <circle cx="32" cy="21" r="4.6" stroke="currentColor" strokeWidth="2.6" />
@@ -85,7 +86,7 @@ const LOGO_MARKS: Record<LandingLogoMark, string> = {
   ring: 'M12 4.1a7.9 7.9 0 100 15.8 7.9 7.9 0 000-15.8zm0 4.3a3.6 3.6 0 110 7.2 3.6 3.6 0 010-7.2z',
 };
 
-const LogoMark = ({ mark }: { mark: LandingLogoMark }) => (
+export const LogoMark = ({ mark }: { mark: LandingLogoMark }) => (
   <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
     <path d={LOGO_MARKS[mark]} fill="currentColor" fillRule="evenodd" />
   </svg>
@@ -140,15 +141,27 @@ export const LandingView: React.FC<LandingViewProps> = ({
   onGuestMode,
   isOnline,
 }) => {
-  const [mode, setMode] = useState<'signup' | 'login'>('signup');
-  const [country, setCountry] = useState<LandingCountry>(LANDING_DEFAULT_COUNTRY);
+  // A página de vendas pública manda os visitantes para aqui; quem chega com
+  // "?modo=entrar" cai no separador de login em vez do de registo.
+  const [mode, setMode] = useState<'signup' | 'login'>(() => {
+    try {
+      return new URLSearchParams(window.location.search).get('modo') === 'entrar' ? 'login' : 'signup';
+    } catch {
+      return 'signup';
+    }
+  });
+  // Duas coisas diferentes que antes eram a mesma variável:
+  // - previewCountry: o seletor de moeda do mockup (a referência fixa BR);
+  // - accountCountry: o país da conta, sugerido pela região do browser.
+  const [previewCountry, setPreviewCountry] = useState<LandingCountry>(LANDING_DEFAULT_COUNTRY);
+  const [accountCountry] = useState<LandingCountry>(() => detectDefaultCountry());
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const d = LANDING_PREVIEW[country];
+  const d = LANDING_PREVIEW[previewCountry];
   const nTotal = useCount(LANDING_TOTAL_COMPANIES);
   const nAO = useCount(LANDING_COMPANIES.AO);
   const nBR = useCount(LANDING_COMPANIES.BR);
@@ -170,7 +183,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
     setBusy(true);
     try {
       const { signInWithGoogle } = await import('../services/googleAuthService');
-      const user = await signInWithGoogle();
+      const user = await signInWithGoogle(accountCountry);
       onAuthSuccess({ id: user.id, email: user.email, name: user.name, country: user.country });
     } catch (err: any) {
       const msg = String(err?.message || '');
@@ -193,7 +206,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
     try {
       const { register, login } = await import('../services/authService');
       if (mode === 'signup') {
-        const user = await register(email, password, name, country);
+        const user = await register(email, password, name, accountCountry);
         onRegistered({ id: user.id, email: user.email, name: user.name, country: user.country });
       } else {
         const user = await login(email, password);
@@ -284,8 +297,8 @@ export const LandingView: React.FC<LandingViewProps> = ({
                   <button
                     key={k}
                     type="button"
-                    aria-pressed={country === k}
-                    onClick={() => setCountry(k)}
+                    aria-pressed={previewCountry === k}
+                    onClick={() => setPreviewCountry(k)}
                   >
                     {LANDING_PREVIEW[k].flag} {LANDING_PREVIEW[k].cur}
                   </button>
@@ -293,7 +306,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
               </div>
               <div className="glass phone" aria-label="Pré-visualização do app">
                 <div className="screen">
-                  <div key={country} className="swap">
+                  <div key={previewCountry} className="swap">
                     <div className="sh">
                       <span>Saldo projetado</span>
                       <span>12 meses</span>

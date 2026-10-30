@@ -24,6 +24,8 @@ import {
   calculateTotals,
   analyzeBudgets,
   generatePredictiveAlerts,
+  calculateCategoryStats,
+  projectScenarios,
 } from './services/businessRules';
 import { getAccountAggregator } from './services/accountAggregator';
 import { materializeRecurringTransactions } from './services/recurrenceEngine';
@@ -66,12 +68,14 @@ import { OnboardingWizard, type OnboardingResult } from './components/Onboarding
 import { SalesFunnelView } from './components/SalesFunnelView';
 import { fetchAccess, fetchIsAdmin, confirmPayment, type AccessInfo } from './services/accessService';
 import { AdminView } from './components/AdminView';
+import { SalesPageView } from './components/SalesPageView';
 import { PlumbLine } from './components/PlumbLine';
 import {
   fetchMe,
   logout as authLogout,
   exportMyData,
   deleteMyAccount,
+  updateCountry,
   type AuthUser,
 } from './services/authService';
 import { pushState, pullState, type SyncStatus } from './services/syncService';
@@ -542,6 +546,14 @@ export default function App() {
     if (newCountry !== country) {
       handleCountryChange(newCountry);
     }
+    // Persistir o país na conta: sem isto o /api/auth/me devolvia o valor
+    // antigo e o reload desfazia a troca (moeda, funil, copiloto).
+    if (authStatus === 'authed' && !isDemoMode) {
+      setAuthUser((prev) => (prev ? { ...prev, country: newCountry } : prev));
+      updateCountry(newCountry).catch((err) => {
+        console.warn('[Prumo] Falha ao guardar o país da conta:', err);
+      });
+    }
   };
 
   // 2FA Toggle
@@ -801,6 +813,17 @@ Todas as ferramentas do Prumo — incluindo registro de lançamentos, verificaç
     const { totalIncome, totalExpense, netSavings, savingsRate } = calculateTotals(transactions);
     const budgetAnalysis = analyzeBudgets(budgetLimits, transactions);
     const predictiveAlerts = generatePredictiveAlerts(user.profile, accounts, transactions, budgetLimits);
+    // Retrato completo: o copiloto precisa do histórico por categoria e da
+    // projeção real (antes ia a zeros e ele respondia "sem histórico").
+    const categoryStats = calculateCategoryStats(transactions, 90);
+    const scenarioProjection = projectScenarios(
+      aggregatedBalance,
+      totalIncome > 0 ? totalIncome : user.profile.monthlyIncomeExpectation,
+      totalExpense > 0 ? totalExpense : 3000,
+      scenarioEvents,
+      24
+    );
+    const month24 = scenarioProjection[scenarioProjection.length - 1];
 
     const snapshot: FinancialSnapshot = {
       user: {
@@ -820,13 +843,13 @@ Todas as ferramentas do Prumo — incluindo registro de lançamentos, verificaç
         netSavings,
         savingsRate,
       },
-      past90DaysByCategory: {},
+      past90DaysByCategory: categoryStats,
       budgets: budgetAnalysis,
       activeScenarioSummary: {
         enabledEventsCount: scenarioEvents.filter((e) => e.enabled).length,
-        month24Baseline: 0,
-        month24Scenario: 0,
-        difference: 0,
+        month24Baseline: month24?.baselineBalance ?? 0,
+        month24Scenario: month24?.scenarioBalance ?? 0,
+        difference: month24?.deltaNet ?? 0,
       },
     };
 
@@ -845,12 +868,18 @@ Todas as ferramentas do Prumo — incluindo registro de lançamentos, verificaç
       });
 
       const data = await res.json();
+      // O servidor sinaliza quando não houve IA (fallback heurístico). Sem este
+      // aviso, a resposta de reserva passava por resposta do copiloto.
+      const fallbackNote =
+        data?.source === 'heuristic_fallback' && data?.fallbackReason
+          ? `\n\n— Resposta gerada localmente. ${data.fallbackReason}`
+          : '';
 
       const assistantMsg: ChatMessage = {
         id: `msg_asst_${Date.now()}`,
         userId: user.id,
         role: 'assistant',
-        content: data.reply || 'Desculpe, não consegui processar a resposta agora.',
+        content: (data.reply || 'Desculpe, não consegui processar a resposta agora.') + fallbackNote,
         createdAt: new Date().toISOString(),
         suggestedAction: data.suggestedAction || undefined,
       };
@@ -940,6 +969,10 @@ Todas as ferramentas do Prumo — incluindo registro de lançamentos, verificaç
   }
 
   if (authStatus === 'guest') {
+    // Página de vendas pública (não autenticado): /vendas
+    const path = window.location.pathname.replace(/\/+$/, '') || '/';
+    if (path === '/vendas') return <SalesPageView />;
+
     return (
       <LandingView
         onAuthSuccess={(u) => handleAuthSuccess(u, false)}

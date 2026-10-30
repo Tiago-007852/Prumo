@@ -71,7 +71,7 @@ async function main() {
   // 2. Procura preço recorrente BRL 29,90 já existente neste produto
   // (a API de listagem não aceita filtro por currency — filtramos aqui)
   const prices = await stripeFetch(`/prices?product=${product.id}&limit=50`);
-  const price = prices.data.find(
+  let price = prices.data.find(
     (p) => p.currency === 'brl' && p.unit_amount === 2990 && p.recurring?.interval === 'month' && p.type === 'recurring'
   );
 
@@ -87,12 +87,13 @@ async function main() {
       'metadata[parity]': '4900 AOA',
       nickname: 'Prumo Premium Mensal',
     });
+    price = created;
     console.log(`✅ Preço recorrente criado: ${created.id} (R$ 29,90/mês)`);
   }
 
   console.log('\n─── Configure estas env vars ───');
   console.log('STRIPE_SECRET_KEY = (já configurada localmente; replicar na Vercel)');
-  console.log(`STRIPE_PRICE_ID   = ${price?.id || '(ver acima — recém-criado)'}`);
+  console.log(`STRIPE_PRICE_ID   = ${price?.id || '(não disponível)'}`);
 }
 
 main().catch((err) => {

@@ -152,8 +152,14 @@ export async function promptGoogleSignIn(clientId: string): Promise<string> {
   });
 }
 
-/** Fluxo completo: pede token ao Google e valida no servidor (cria a sessão). */
-export async function signInWithGoogle(): Promise<{ id: string; email: string; name: string; country: 'BR' | 'AO' }> {
+/**
+ * Fluxo completo: pede token ao Google e valida no servidor (cria a sessão).
+ * `country` só é usado quando a conta é NOVA (o servidor ignora para contas
+ * existentes) — evita que todo angolano que entre pelo Google vire 'BR'.
+ */
+export async function signInWithGoogle(
+  country?: 'BR' | 'AO'
+): Promise<{ id: string; email: string; name: string; country: 'BR' | 'AO' }> {
   const clientId = await fetchGoogleClientId();
   if (!clientId) {
     throw new Error('Login com Google indisponível no servidor (GOOGLE_CLIENT_ID não configurado)');
@@ -163,7 +169,7 @@ export async function signInWithGoogle(): Promise<{ id: string; email: string; n
   const res = await fetch('/api/sync', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'google_auth', idToken }),
+    body: JSON.stringify({ action: 'google_auth', idToken, country }),
     credentials: 'same-origin',
   });
   const data = await res.json().catch(() => ({}));

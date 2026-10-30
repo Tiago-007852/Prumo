@@ -110,6 +110,16 @@ export function resolveAiProviderName(): string | null {
   return resolveCompatProvider()?.name ?? null;
 }
 
+/**
+ * Orçamento de tempo da cadeia de modelos. As funções serverless da Vercel
+ * (plano Hobby) são cortadas aos 10 s: a cadeia tem de desistir antes e deixar
+ * o fallback honesto responder, em vez de devolver 504 ao utilizador.
+ */
+const ATTEMPT_TIMEOUT_MS = 7_000;
+const TOTAL_BUDGET_MS = 9_500;
+/** Teto de resposta (~500 palavras): controla custo e latência. */
+const MAX_TOKENS = 700;
+
 export interface LLMContentTurn {
   role: 'user' | 'model';
   parts: Array<{ text: string }>;
@@ -147,8 +157,19 @@ export async function chatComplete(
   ];
 
   let lastError = '';
+  const startedAt = Date.now();
 
   for (const model of provider.models) {
+    const remaining = TOTAL_BUDGET_MS - (Date.now() - startedAt);
+    if (remaining <= 500) {
+      lastError = 'Orçamento de tempo esgotado antes de tentar todos os modelos';
+      console.error(`[LLM:${provider.name}] ${lastError}`);
+      break;
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), Math.min(ATTEMPT_TIMEOUT_MS, remaining));
+
     try {
       const res = await fetch(`${provider.baseUrl}/chat/completions`, {
         method: 'POST',
@@ -159,8 +180,11 @@ export async function chatComplete(
         body: JSON.stringify({
           model,
           messages,
-          temperature: 0.7,
+          // 0.4: um copiloto financeiro não deve improvisar números.
+          temperature: 0.4,
+          max_tokens: MAX_TOKENS,
         }),
+        signal: controller.signal,
       });
 
       if (!res.ok) {
@@ -183,9 +207,14 @@ export async function chatComplete(
       }
       return { text, provider: provider.name, model };
     } catch (err) {
-      lastError = `Erro de rede (${model}): ${err instanceof Error ? err.message : String(err)}`;
+      lastError =
+        err instanceof Error && err.name === 'AbortError'
+          ? `Tempo esgotado (${model})`
+          : `Erro de rede (${model}): ${err instanceof Error ? err.message : String(err)}`;
       console.error(`[LLM:${provider.name}] ${lastError}`);
       continue;
+    } finally {
+      clearTimeout(timer);
     }
   }
 

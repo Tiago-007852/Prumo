@@ -36,7 +36,9 @@ interface SalesFunnelViewProps {
 const TOTAL_STEPS = 3;
 
 /** Stack de produtos — espelha os módulos reais do app. */
-const MODULES = [
+/** Partilhado com a página de vendas pública (mesmo copy — nada de prometer
+ *  módulos diferentes dos que o funil mostra depois do registo). */
+export const MODULES = [
   { tag: 'PAINEL', title: 'Painel Financeiro', pain: 'Você só percebe que exagerou quando a fatura fecha' },
   { tag: 'PLANILHA', title: 'Controle de Lançamentos', pain: 'As despesas que não aparecem todo mês são as que bagunçam tudo' },
   { tag: 'PLANILHA', title: 'Orçamentos & Metas', pain: 'Sem um passo a passo, você sabe o que fazer e mesmo assim nunca começa' },
@@ -45,7 +47,7 @@ const MODULES = [
   { tag: 'RELATÓRIOS', title: 'Relatórios & Exportação', pain: 'Sem relatório, todo mês começa do zero' },
 ];
 
-const BONUSES = [
+export const BONUSES = [
   { tag: 'BÔNUS 1', title: 'Checklist de Organização Financeira em 7 Dias', pain: 'O passo a passo para organizar tudo necessário em uma semana' },
   { tag: 'BÔNUS 2', title: 'Guia Rápido: Como Sair das Dívidas', pain: 'Estratégia simples para quitar dívidas mais rápido' },
 ];
@@ -59,7 +61,7 @@ const TESTIMONIALS = [
 ];
 
 /** Formata o preço no padrão do país (Kz sem decimais, R$ com 2). */
-function formatPrice(value: number, currency: 'BRL' | 'AOA'): string {
+export function formatPrice(value: number, currency: 'BRL' | 'AOA'): string {
   if (currency === 'AOA') {
     return `${value.toLocaleString('pt-AO').replace(/[\u00A0\u202F]/g, '.')} Kz`;
   }
@@ -78,11 +80,14 @@ export const SalesFunnelView: React.FC<SalesFunnelViewProps> = ({
   const [step, setStep] = useState(0);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showCodeInput, setShowCodeInput] = useState(false);
+  const [showCodeInput, setShowCodeInput] = useState(country === 'AO');
   const [code, setCode] = useState('');
 
   const pricing: PlanPricing = useMemo(() => pricingFor(country), [country]);
   const isProd = import.meta.env.PROD;
+  // Angola não passa pelo Stripe: o checkout cobra sempre em BRL (R$ 29,90),
+  // por isso o acesso angolano é vendido por código de ativação.
+  const isAngola = country === 'AO';
 
   const goalLine = quiz.primaryGoal
     ? quiz.primaryGoal.charAt(0).toUpperCase() + quiz.primaryGoal.slice(1)
@@ -303,15 +308,25 @@ export const SalesFunnelView: React.FC<SalesFunnelViewProps> = ({
             </div>
 
             {/* CTA principal */}
-            <button
-              onClick={handleCheckout}
-              disabled={pending}
-              className="w-full py-4 rounded-xl bg-[var(--accent)] text-white dark:text-[#0B0E14] font-bold tracking-wide text-sm hover:brightness-110 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
-              style={{ boxShadow: '0 8px 30px var(--gold-glow)' }}
-            >
-              {pending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
-              GARANTIR MEU ACESSO →
-            </button>
+            {isAngola ? (
+              <div className="rounded-xl border border-[var(--accent)]/40 bg-[var(--surface-2)] p-4 text-center">
+                <div className="font-semibold text-sm">{formatPrice(pricing.monthly, pricing.currency)} por mês, sem passar pelo cartão</div>
+                <p className="text-xs text-[var(--text-dim)] mt-1.5 leading-relaxed">
+                  O checkout do cartão é cobrado em reais (R$ 29,90). Em Angola o pagamento é combinado no
+                  atendimento e recebes um código de ativação de 31 dias — ativa-o aqui em baixo.
+                </p>
+              </div>
+            ) : (
+              <button
+                onClick={handleCheckout}
+                disabled={pending}
+                className="w-full py-4 rounded-xl bg-[var(--accent)] text-white dark:text-[#0B0E14] font-bold tracking-wide text-sm hover:brightness-110 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
+                style={{ boxShadow: '0 8px 30px var(--gold-glow)' }}
+              >
+                {pending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
+                GARANTIR MEU ACESSO →
+              </button>
+            )}
 
             {/* Bônus */}
             <div className="rounded-2xl border border-dashed border-[var(--positive)]/40 p-4 flex flex-col gap-3">
@@ -340,8 +355,16 @@ export const SalesFunnelView: React.FC<SalesFunnelViewProps> = ({
               </div>
             )}
 
-            {/* Ativação por código (vendas manuais / fallback) */}
+            {/* Ativação por código (Angola / vendas manuais) */}
             <div className="text-center">
+              {isAngola && (
+                <div className="mb-3">
+                  <div className="text-sm font-semibold">Ativação do acesso em Angola</div>
+                  <p className="text-[11px] text-[var(--text-dim)] mt-1">
+                    Combina o pagamento no atendimento e recebes o código por aqui.
+                  </p>
+                </div>
+              )}
               {showCodeInput ? (
                 <div className="flex flex-col gap-2 items-center">
                   <div className="flex w-full max-w-sm gap-2">

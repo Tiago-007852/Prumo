@@ -12,11 +12,13 @@ import {
   getUserByToken,
   destroySession,
   googleLoginUser,
+  updateUserCountry,
   isGoogleAuthConfigured,
   SESSION_COOKIE,
 } from './api/_lib/auth';
 import { saveUserState, loadUserState, exportUserData, deleteUserData } from './api/_lib/userData';
 import { requireUser } from './api/_lib/http';
+import { checkRateLimit, rateLimitMessage } from './api/_lib/rateLimit';
 import { createSpace, getSpaceByUserId, joinSpace, leaveSpace, getSpaceSummary } from './api/_lib/space';
 import { isPluggyConfigured, createConnectToken } from './api/_lib/pluggy';
 import {
@@ -155,7 +157,7 @@ app.post('/api/sync', async (req, res) => {
     // ─── Login com Google (rota pública, corre antes do requireUser) ───
     if (req.body?.action === 'google_auth') {
       try {
-        const result = await googleLoginUser({ idToken: req.body.idToken });
+        const result = await googleLoginUser({ idToken: req.body.idToken, country: req.body.country });
         res.setHeader(
           'Set-Cookie',
           `${SESSION_COOKIE}=${result.token}; HttpOnly; Secure; SameSite=Lax; Path=/; Expires=${result.expiresAt.toUTCString()}`
@@ -211,6 +213,16 @@ app.post('/api/sync', async (req, res) => {
     }
 
     // ─── Painel Admin (Fase A) — requireAdmin no servidor ───
+    // ─── País da conta (moeda, funil de preços, copiloto) ───
+    if (req.body?.action === 'set_country') {
+      try {
+        const updated = await updateUserCountry(user.id, req.body.country);
+        return res.json({ ok: true, user: updated });
+      } catch (cErr: any) {
+        return res.status(400).json({ error: cErr?.message || 'Falha ao atualizar o país' });
+      }
+    }
+
     if (req.body?.action === 'admin_kpis') {
       return adminActionExpress(res, user, () => getAdminKpis());
     }
@@ -398,6 +410,12 @@ app.get('/api/health', (req, res) => {
 
 // Endpoint do Copiloto Financeiro com IA (Seção 5 do Brief)
 app.post('/api/copiloto', async (req, res) => {
+  const user = await requireUser(req);
+  if (!user) return res.status(401).json({ error: 'Entre na sua conta para usar o copiloto.' });
+
+  const limit = await checkRateLimit(`copilot:${user.id}`, 20, 300);
+  if (!limit.allowed) return res.status(429).json({ error: rateLimitMessage(limit) });
+
   try {
     const body = req.body || {};
 

@@ -14,6 +14,9 @@ export interface StoredUserState {
   scenarioEvents: unknown[];
   chatMessages: unknown[];
   goals: unknown[];
+  recurrenceRules: unknown[];
+  categoryAllocations: unknown[];
+  notifications: unknown[];
   lastSavedAt?: string;
   offlineQueue?: unknown[];
 }
@@ -43,6 +46,12 @@ export function sanitizeState(input: unknown): StoredUserState | null {
     scenarioEvents: arr(o.scenarioEvents).slice(0, 200),
     chatMessages: arr(o.chatMessages).slice(0, 1000),
     goals: arr(o.goals).slice(0, 100),
+    // Enviados pelo auto-push do app (App.tsx) e restaurados no pull — sem
+    // isto, recorrências, alocações por categoria e notificações perdiam-se
+    // ao trocar de dispositivo.
+    recurrenceRules: arr(o.recurrenceRules).slice(0, 200),
+    categoryAllocations: arr(o.categoryAllocations).slice(0, 200),
+    notifications: arr(o.notifications).slice(0, 200),
     offlineQueue: arr(o.offlineQueue).slice(0, 500),
     lastSavedAt: typeof o.lastSavedAt === 'string' ? o.lastSavedAt : undefined,
   };

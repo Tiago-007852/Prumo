@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { requireUser, unauthorized } from '../_lib/http';
 import { loadUserState, saveUserState } from '../_lib/userData';
 import { confirmPayment, activateWithCode, createCheckoutSession } from '../_lib/payments';
-import { googleLoginUser, SESSION_COOKIE } from '../_lib/auth';
+import { googleLoginUser, updateUserCountry, SESSION_COOKIE } from '../_lib/auth';
 import {
   requireAdmin,
   getAdminKpis,
@@ -35,6 +35,24 @@ async function adminAction(res: VercelResponse, user: { id: string; email: strin
  *   POST /api/sync  → salva o estado enviado pelo cliente (push)
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // ─── Login com Google (token GIS validado no servidor) ───
+  // Rota pública: corre ANTES do requireUser — é ela que cria a sessão.
+  // (Aqui, e não dentro do bloco POST abaixo: quem chega sem cookie ainda
+  //  não tem sessão, por isso o requireUser responderia 401 primeiro.)
+  if (req.method === 'POST' && req.body?.action === 'google_auth') {
+    try {
+      const result = await googleLoginUser({ idToken: req.body.idToken, country: req.body.country });
+      res.setHeader(
+        'Set-Cookie',
+        `${SESSION_COOKIE}=${result.token}; HttpOnly; Secure; SameSite=Lax; Path=/; Expires=${result.expiresAt.toUTCString()}`
+      );
+      return res.status(200).json({ user: result.user });
+    } catch (gErr: any) {
+      const status = gErr?.code === 'not_configured' ? 501 : 401;
+      return res.status(status).json({ error: gErr?.message || 'Falha no login com Google', configured: gErr?.code !== 'not_configured' });
+    }
+  }
+
   const user = await requireUser(req);
   if (!user) return unauthorized(res);
 
@@ -45,22 +63,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (req.method === 'POST') {
-      // ─── Login com Google (token GIS validado no servidor) ───
-      // Rota pública: corre ANTES do requireUser — é ela que cria a sessão.
-      if (req.body?.action === 'google_auth') {
-        try {
-          const result = await googleLoginUser({ idToken: req.body.idToken });
-          res.setHeader(
-            'Set-Cookie',
-            `${SESSION_COOKIE}=${result.token}; HttpOnly; Secure; SameSite=Lax; Path=/; Expires=${result.expiresAt.toUTCString()}`
-          );
-          return res.status(200).json({ user: result.user });
-        } catch (gErr: any) {
-          const status = gErr?.code === 'not_configured' ? 501 : 401;
-          return res.status(status).json({ error: gErr?.message || 'Falha no login com Google', configured: gErr?.code !== 'not_configured' });
-        }
-      }
-
       // ─── Ações de pagamento (Fase 5) na mesma função — limite de 12 ───
       if (req.body?.action === 'checkout_start') {
         try {
@@ -94,6 +96,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(501).json({ error: codeErr.message, configured: false });
           }
           return res.status(400).json({ error: codeErr?.message || 'Código inválido' });
+        }
+      }
+
+      // ─── País da conta (moeda, funil de preços, copiloto) ───
+      if (req.body?.action === 'set_country') {
+        try {
+          const updated = await updateUserCountry(user.id, req.body.country);
+          return res.status(200).json({ ok: true, user: updated });
+        } catch (cErr: any) {
+          return res.status(400).json({ error: cErr?.message || 'Falha ao atualizar o país' });
         }
       }
 
